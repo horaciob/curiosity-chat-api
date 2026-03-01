@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -15,6 +16,17 @@ type JWTService struct {
 // NewJWTService creates a new JWTService.
 func NewJWTService(secret string) *JWTService {
 	return &JWTService{secret: []byte(secret)}
+}
+
+// Issue creates a signed JWT with sub=userID valid for 30 days.
+func (s *JWTService) Issue(userID string) (string, error) {
+	claims := jwt.RegisteredClaims{
+		Subject:   userID,
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(s.secret)
 }
 
 // Validate parses and validates the token, returning the user ID (sub claim).

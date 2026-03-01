@@ -15,6 +15,7 @@ import (
 // NewRouter builds and returns the chi router with all routes wired.
 func NewRouter(
 	healthHandler *handler.HealthHandler,
+	tokenHandler *handler.TokenHandler,
 	conversationHandler *handler.ConversationHandler,
 	messageHandler *handler.MessageHandler,
 	wsHandler *handler.WSHandler,
@@ -41,7 +42,10 @@ func NewRouter(
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", healthHandler.Health)
 
-		// WebSocket — auth via ?token= query param (no middleware wrapping needed)
+		// Public: issue JWT for mobile clients authenticated via curiosity-api SSO
+		r.Post("/token", tokenHandler.Issue)
+
+		// WebSocket — auth via first frame (no middleware needed)
 		r.Get("/ws", wsHandler.ServeWS)
 
 		// Protected routes

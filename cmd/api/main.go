@@ -86,12 +86,13 @@ func main() {
 
 	// Handlers
 	healthHandler := handler.NewHealthHandler()
+	tokenHandler := handler.NewTokenHandler(jwtService)
 	conversationHandler := handler.NewConversationHandler(createConversationUC, getConversationUC, listConversationsUC)
 	messageHandler := handler.NewMessageHandler(sendMessageUC, getMessagesUC)
 	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, jwtService, logger)
 
 	// Router
-	r := router.NewRouter(healthHandler, conversationHandler, messageHandler, wsHandler, jwtService)
+	r := router.NewRouter(healthHandler, tokenHandler, conversationHandler, messageHandler, wsHandler, jwtService)
 
 	// HTTP server
 	srv := &http.Server{
