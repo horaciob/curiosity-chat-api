@@ -1,0 +1,260 @@
+basePath: /api/v1
+definitions:
+  internal_adapter_http_handler.createConversationRequest:
+    properties:
+      target_user_id:
+        type: string
+    type: object
+  internal_adapter_http_handler.sendMessageRequest:
+    properties:
+      content:
+        type: string
+      poi_id:
+        type: string
+      type:
+        type: string
+    type: object
+host: localhost:8081
+info:
+  contact: {}
+  description: Real-time 1-on-1 chat microservice for the Curiosity platform. Users
+    who mutually follow each other can exchange messages and share POIs via WebSockets.
+  title: Curiosity Chat API
+  version: "1.0"
+paths:
+  /conversations:
+    get:
+      description: Returns a paginated list of conversations for the authenticated
+        user, ordered by most recent activity.
+      parameters:
+      - description: Max results (default 20)
+        in: query
+        name: page[limit]
+        type: integer
+      - description: Offset for pagination
+        in: query
+        name: page[offset]
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Paginated list of conversations
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List conversations
+      tags:
+      - conversations
+    post:
+      consumes:
+      - application/json
+      description: Starts a new conversation between the authenticated user and the
+        target user. If a conversation already exists it is returned. Both users must
+        mutually follow each other.
+      parameters:
+      - description: Target user
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_adapter_http_handler.createConversationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Conversation already exists
+          schema:
+            type: object
+        "201":
+          description: Conversation created
+          schema:
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: object
+        "403":
+          description: Users do not mutually follow each other
+          schema:
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create or get a conversation
+      tags:
+      - conversations
+  /conversations/{id}:
+    get:
+      description: Returns a conversation by ID. The authenticated user must be a
+        participant.
+      parameters:
+      - description: Conversation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Conversation
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: object
+        "403":
+          description: Forbidden — not a participant
+          schema:
+            type: object
+        "404":
+          description: Not found
+          schema:
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get a conversation
+      tags:
+      - conversations
+  /conversations/{id}/messages:
+    get:
+      description: Returns paginated message history for a conversation, ordered newest
+        first. The authenticated user must be a participant.
+      parameters:
+      - description: Conversation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Max results (default 50)
+        in: query
+        name: page[limit]
+        type: integer
+      - description: Offset for pagination
+        in: query
+        name: page[offset]
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Paginated list of messages
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: object
+        "403":
+          description: Forbidden — not a participant
+          schema:
+            type: object
+        "404":
+          description: Conversation not found
+          schema:
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List messages
+      tags:
+      - messages
+    post:
+      consumes:
+      - application/json
+      description: Sends a text message or POI share to the conversation. The authenticated
+        user must be a participant.
+      parameters:
+      - description: Conversation ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Message payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_adapter_http_handler.sendMessageRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Message created
+          schema:
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: object
+        "403":
+          description: Forbidden — not a participant
+          schema:
+            type: object
+        "404":
+          description: Conversation not found
+          schema:
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Send a message
+      tags:
+      - messages
+  /health:
+    get:
+      description: Returns the service status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - health
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    description: 'Type "Bearer" followed by a space and the JWT token. Example: "Bearer
+      eyJhbGci..."'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
