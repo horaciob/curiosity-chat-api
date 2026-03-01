@@ -8,10 +8,18 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const (
+	// MessageTypeAuth is the first frame the client must send to authenticate.
+	MessageTypeAuth = "auth"
+	// AuthDeadline is the time the server waits for the auth frame before closing.
+	AuthDeadline = 10 * time.Second
+)
+
 // IncomingMessage is the JSON structure sent by a WebSocket client.
 type IncomingMessage struct {
-	Type           string `json:"type"`             // "text" | "poi_share"
-	ConversationID string `json:"conversation_id"`
+	Type           string `json:"type"`                      // "auth" | "text" | "poi_share"
+	Token          string `json:"token,omitempty"`            // only for type="auth"
+	ConversationID string `json:"conversation_id,omitempty"`
 	Content        string `json:"content,omitempty"`
 	POIID          string `json:"poi_id,omitempty"`
 }

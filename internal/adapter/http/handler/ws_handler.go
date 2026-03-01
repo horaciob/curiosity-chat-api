@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/middleware"
@@ -45,23 +46,35 @@ func NewWSHandler(
 }
 
 // ServeWS handles GET /api/v1/ws — upgrades the connection to WebSocket.
-// Authentication is done via the ?token=<jwt> query parameter.
+//
+// Authentication flow (token never appears in the URL):
+//  1. Client connects — no credentials needed in the URL.
+//  2. Server upgrades to WebSocket immediately.
+//  3. Client must send {"type":"auth","token":"<jwt>"} within 10 seconds.
+//  4. Server validates the token. On success it replies {"type":"auth_ok"}.
+//  5. On failure or timeout the connection is closed with a policy-violation code.
+//
+//	@Summary		Open a WebSocket connection
+//	@Description	Upgrades to WebSocket. The first client frame must be an auth message: {"type":"auth","token":"<jwt>"}
+//	@Tags			websocket
+//	@Success		101	"Switching Protocols"
+//	@Failure		401	"Unauthorized"
+//	@Router			/ws [get]
 func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		http.Error(w, "missing token", http.StatusUnauthorized)
-		return
-	}
-
-	userID, err := h.jwtValidator.Validate(token)
-	if err != nil {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
-		return
-	}
-
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		h.logger.Error("websocket upgrade failed", zap.Error(err))
+		return
+	}
+
+	userID, err := h.authenticate(conn)
+	if err != nil {
+		h.logger.Warn("websocket auth failed", zap.Error(err))
+		conn.WriteMessage( //nolint:errcheck
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "authentication failed"),
+		)
+		conn.Close()
 		return
 	}
 
@@ -74,6 +87,37 @@ func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 	go client.WritePump()
 
 	h.readPump(client)
+}
+
+// authenticate reads the first WebSocket frame and validates the auth token.
+// The client must send {"type":"auth","token":"<jwt>"} within AuthDeadline.
+func (h *WSHandler) authenticate(conn *websocket.Conn) (string, error) {
+	conn.SetReadDeadline(time.Now().Add(ws.AuthDeadline)) //nolint:errcheck
+	defer conn.SetReadDeadline(time.Time{})               //nolint:errcheck
+
+	_, data, err := conn.ReadMessage()
+	if err != nil {
+		return "", err
+	}
+
+	var frame ws.IncomingMessage
+	if err := json.Unmarshal(data, &frame); err != nil {
+		return "", err
+	}
+
+	if frame.Type != ws.MessageTypeAuth || frame.Token == "" {
+		return "", websocket.ErrCloseSent
+	}
+
+	userID, err := h.jwtValidator.Validate(frame.Token)
+	if err != nil {
+		return "", err
+	}
+
+	ack, _ := json.Marshal(map[string]string{"type": "auth_ok", "user_id": userID})
+	conn.WriteMessage(websocket.TextMessage, ack) //nolint:errcheck
+
+	return userID, nil
 }
 
 func (h *WSHandler) readPump(client *ws.Client) {
