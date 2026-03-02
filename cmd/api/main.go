@@ -16,12 +16,10 @@ import (
 	postgresrepo "github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/repository/postgres"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/handler"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/router"
-	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/auth"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/authclient"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/config"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/database"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/followclient"
-	infraredis "github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/redis"
-	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/tokenstore"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/conversation"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/message"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/ws"
@@ -79,17 +77,8 @@ func main() {
 	sendMessageUC := message.NewSendMessage(msgRepo, convRepo)
 	getMessagesUC := message.NewGetMessages(msgRepo, convRepo)
 
-	// JWT service
-	jwtService := auth.NewJWTService(cfg.JWTSecret)
-
-	// Redis + token store
-	redisClient := infraredis.NewClient(infraredis.RedisConfig{
-		Host:     cfg.Redis.Host,
-		Port:     cfg.Redis.Port,
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-	})
-	tokenStore := tokenstore.NewRedisStore(redisClient)
+	// Auth client — delegates token validation to curiosity-auth-api
+	authClient := authclient.NewClient(cfg.AuthAPIURL, cfg.InternalAPIKey)
 
 	// WebSocket hub
 	hub := ws.NewHub()
@@ -97,13 +86,12 @@ func main() {
 
 	// Handlers
 	healthHandler := handler.NewHealthHandler()
-	tokenHandler := handler.NewTokenHandler(jwtService, tokenStore)
 	conversationHandler := handler.NewConversationHandler(createConversationUC, getConversationUC, listConversationsUC)
 	messageHandler := handler.NewMessageHandler(sendMessageUC, getMessagesUC)
-	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, jwtService, logger)
+	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, authClient, logger)
 
 	// Router
-	r := router.NewRouter(healthHandler, tokenHandler, conversationHandler, messageHandler, wsHandler, jwtService, cfg.InternalAPIKey)
+	r := router.NewRouter(healthHandler, conversationHandler, messageHandler, wsHandler, authClient, cfg.InternalAPIKey)
 
 	// HTTP server
 	srv := &http.Server{

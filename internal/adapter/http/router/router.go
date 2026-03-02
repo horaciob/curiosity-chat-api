@@ -14,11 +14,10 @@ import (
 
 func NewRouter(
 	healthHandler *handler.HealthHandler,
-	tokenHandler *handler.TokenHandler,
 	conversationHandler *handler.ConversationHandler,
 	messageHandler *handler.MessageHandler,
 	wsHandler *handler.WSHandler,
-	jwtService custommiddleware.TokenValidator,
+	tokenValidator custommiddleware.TokenValidator,
 	internalAPIKey string,
 ) *chi.Mux {
 	r := chi.NewRouter()
@@ -39,24 +38,15 @@ func NewRouter(
 	})
 	r.Get("/swagger/", swaggerUIHandler)
 
-	// Internal routes — only reachable by trusted services presenting X-Internal-Key
-	r.Group(func(r chi.Router) {
-		r.Use(custommiddleware.InternalAuthenticate(internalAPIKey))
-		r.Post("/internal/token", tokenHandler.IssueInternal)
-	})
-
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", healthHandler.Health)
-
-		// Public: refresh access token using a valid refresh token
-		r.Post("/token/refresh", tokenHandler.Refresh)
 
 		// WebSocket — auth via first frame (no middleware needed)
 		r.Get("/ws", wsHandler.ServeWS)
 
 		// Protected routes
 		r.Group(func(r chi.Router) {
-			r.Use(custommiddleware.Authenticate(jwtService))
+			r.Use(custommiddleware.Authenticate(tokenValidator))
 
 			r.Route("/conversations", func(r chi.Router) {
 				r.Post("/", conversationHandler.Create)
