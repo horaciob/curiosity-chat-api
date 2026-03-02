@@ -1,35 +1,35 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/tokenstore"
 )
 
-// JWTService validates JWT tokens and extracts the user ID from the sub claim.
+const accessTokenTTL = time.Hour
+
 type JWTService struct {
 	secret []byte
 }
 
-// NewJWTService creates a new JWTService.
 func NewJWTService(secret string) *JWTService {
 	return &JWTService{secret: []byte(secret)}
 }
 
-// Issue creates a signed JWT with sub=userID valid for 30 days.
 func (s *JWTService) Issue(userID string) (string, error) {
 	claims := jwt.RegisteredClaims{
 		Subject:   userID,
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * 24 * time.Hour)),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(accessTokenTTL)),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(s.secret)
 }
 
-// Validate parses and validates the token, returning the user ID (sub claim).
 func (s *JWTService) Validate(tokenStr string) (string, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -40,16 +40,49 @@ func (s *JWTService) Validate(tokenStr string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	claims, ok := token.Claims.(*jwt.RegisteredClaims)
 	if !ok || !token.Valid {
 		return "", errors.New("invalid token claims")
 	}
-
 	userID := claims.Subject
 	if userID == "" {
 		return "", errors.New("token missing subject claim")
 	}
-
 	return userID, nil
+}
+
+func (s *JWTService) IssueRefreshToken(ctx context.Context, userID string, store tokenstore.Store) (string, error) {
+	raw, err := tokenstore.GenerateRaw()
+	if err != nil {
+		return "", fmt.Errorf("generating refresh token: %w", err)
+	}
+	hash := tokenstore.Hash(raw)
+	if err := store.Save(ctx, userID, hash, tokenstore.RefreshTokenTTL); err != nil {
+		return "", fmt.Errorf("saving refresh token: %w", err)
+	}
+	return raw, nil
+}
+
+func (s *JWTService) ValidateAndRotateRefreshToken(
+	ctx context.Context,
+	rawToken string,
+	store tokenstore.Store,
+) (newAccessToken, newRawRefresh string, err error) {
+	hash := tokenstore.Hash(rawToken)
+	userID, err := store.Get(ctx, hash)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid or expired refresh token: %w", err)
+	}
+	if err := store.Delete(ctx, hash); err != nil {
+		return "", "", fmt.Errorf("revoking refresh token: %w", err)
+	}
+	newAccess, err := s.Issue(userID)
+	if err != nil {
+		return "", "", fmt.Errorf("issuing access token: %w", err)
+	}
+	newRefresh, err := s.IssueRefreshToken(ctx, userID, store)
+	if err != nil {
+		return "", "", fmt.Errorf("issuing new refresh token: %w", err)
+	}
+	return newAccess, newRefresh, nil
 }

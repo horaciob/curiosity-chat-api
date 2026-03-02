@@ -1,66 +1,105 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/response"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/tokenstore"
 )
 
-// TokenIssuer can issue a signed JWT for a given user ID.
-type TokenIssuer interface {
+const accessTokenExpiresIn = int(time.Hour / time.Second) // 3600
+
+type tokenJWTSvc interface {
 	Issue(userID string) (string, error)
+	IssueRefreshToken(ctx context.Context, userID string, store tokenstore.Store) (string, error)
+	ValidateAndRotateRefreshToken(ctx context.Context, rawToken string, store tokenstore.Store) (newAccessToken, newRawRefresh string, err error)
 }
 
-// TokenHandler handles POST /api/v1/token.
 type TokenHandler struct {
-	issuer TokenIssuer
+	jwtSvc tokenJWTSvc
+	store  tokenstore.Store
 }
 
-// NewTokenHandler creates a new TokenHandler.
-func NewTokenHandler(issuer TokenIssuer) *TokenHandler {
-	return &TokenHandler{issuer: issuer}
+func NewTokenHandler(jwtSvc tokenJWTSvc, store tokenstore.Store) *TokenHandler {
+	return &TokenHandler{jwtSvc: jwtSvc, store: store}
 }
 
-type issueTokenRequest struct {
-	UserID string `json:"user_id"`
+type tokenPairResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
 }
 
-// Issue handles POST /api/v1/token.
-//
-//	@Summary		Issue a chat JWT
-//	@Description	Issues a signed JWT for the given user ID. Used by mobile clients that authenticate via the main curiosity-api SSO flow and need a token to call the chat API.
-//	@Tags			auth
-//	@Accept			json
-//	@Produce		json
-//	@Param			body	body		issueTokenRequest	true	"User ID"
-//	@Success		200		{object}	map[string]string	"token"
-//	@Failure		400		{object}	map[string]string	"Bad request"
-//	@Failure		500		{object}	map[string]string	"Internal error"
-//	@Router			/token [post]
-func (h *TokenHandler) Issue(w http.ResponseWriter, r *http.Request) {
-	var req issueTokenRequest
+// IssueInternal handles POST /internal/token.
+// Protected by InternalAuthenticate middleware.
+func (h *TokenHandler) IssueInternal(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID string `json:"user_id"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, "Bad Request", "invalid request body")
 		return
 	}
-
 	if req.UserID == "" {
 		response.Error(w, http.StatusBadRequest, "Bad Request", "user_id is required")
 		return
 	}
-
 	if _, err := uuid.Parse(req.UserID); err != nil {
 		response.Error(w, http.StatusBadRequest, "Bad Request", "user_id must be a valid UUID")
 		return
 	}
 
-	token, err := h.issuer.Issue(req.UserID)
+	accessToken, err := h.jwtSvc.Issue(req.UserID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "Internal Server Error", "failed to issue token")
+		response.Error(w, http.StatusInternalServerError, "Internal Server Error", "failed to issue access token")
+		return
+	}
+	refreshToken, err := h.jwtSvc.IssueRefreshToken(r.Context(), req.UserID, h.store)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Internal Server Error", "failed to issue refresh token")
 		return
 	}
 
-	response.JSON(w, http.StatusOK, map[string]string{"token": token})
+	response.JSON(w, http.StatusOK, tokenPairResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    accessTokenExpiresIn,
+	})
+}
+
+// Refresh handles POST /api/v1/token/refresh.
+// Public endpoint — rotates the refresh token and issues a new access+refresh pair.
+func (h *TokenHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "Bad Request", "invalid request body")
+		return
+	}
+	if req.RefreshToken == "" {
+		response.Error(w, http.StatusBadRequest, "Bad Request", "refresh_token is required")
+		return
+	}
+
+	newAccess, newRefresh, err := h.jwtSvc.ValidateAndRotateRefreshToken(r.Context(), req.RefreshToken, h.store)
+	if err != nil {
+		if errors.Is(err, tokenstore.ErrTokenNotFound) {
+			response.Error(w, http.StatusUnauthorized, "Unauthorized", "refresh token is invalid or expired")
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, "Internal Server Error", "failed to refresh token")
+		return
+	}
+
+	response.JSON(w, http.StatusOK, tokenPairResponse{
+		AccessToken:  newAccess,
+		RefreshToken: newRefresh,
+		ExpiresIn:    accessTokenExpiresIn,
+	})
 }

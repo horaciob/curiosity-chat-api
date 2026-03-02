@@ -20,6 +20,8 @@ import (
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/config"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/database"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/followclient"
+	infraredis "github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/redis"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/tokenstore"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/conversation"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/message"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/ws"
@@ -65,7 +67,7 @@ func main() {
 	if cfg.CuriosityAPIURL == "" {
 		followChecker = followclient.NoopFollowChecker{}
 	} else {
-		followChecker = followclient.NewClient(cfg.CuriosityAPIURL)
+		followChecker = followclient.NewClient(cfg.CuriosityAPIURL, cfg.InternalAPIKey)
 	}
 
 	// Use cases — conversation
@@ -80,19 +82,28 @@ func main() {
 	// JWT service
 	jwtService := auth.NewJWTService(cfg.JWTSecret)
 
+	// Redis + token store
+	redisClient := infraredis.NewClient(infraredis.RedisConfig{
+		Host:     cfg.Redis.Host,
+		Port:     cfg.Redis.Port,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	})
+	tokenStore := tokenstore.NewRedisStore(redisClient)
+
 	// WebSocket hub
 	hub := ws.NewHub()
 	go hub.Run()
 
 	// Handlers
 	healthHandler := handler.NewHealthHandler()
-	tokenHandler := handler.NewTokenHandler(jwtService)
+	tokenHandler := handler.NewTokenHandler(jwtService, tokenStore)
 	conversationHandler := handler.NewConversationHandler(createConversationUC, getConversationUC, listConversationsUC)
 	messageHandler := handler.NewMessageHandler(sendMessageUC, getMessagesUC)
 	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, jwtService, logger)
 
 	// Router
-	r := router.NewRouter(healthHandler, tokenHandler, conversationHandler, messageHandler, wsHandler, jwtService)
+	r := router.NewRouter(healthHandler, tokenHandler, conversationHandler, messageHandler, wsHandler, jwtService, cfg.InternalAPIKey)
 
 	// HTTP server
 	srv := &http.Server{

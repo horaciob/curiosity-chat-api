@@ -12,7 +12,6 @@ import (
 	custommiddleware "github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/middleware"
 )
 
-// NewRouter builds and returns the chi router with all routes wired.
 func NewRouter(
 	healthHandler *handler.HealthHandler,
 	tokenHandler *handler.TokenHandler,
@@ -20,6 +19,7 @@ func NewRouter(
 	messageHandler *handler.MessageHandler,
 	wsHandler *handler.WSHandler,
 	jwtService custommiddleware.TokenValidator,
+	internalAPIKey string,
 ) *chi.Mux {
 	r := chi.NewRouter()
 
@@ -29,7 +29,7 @@ func NewRouter(
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: []string{"*"},
 		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
-		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
+		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type", "X-Internal-Key"},
 	}))
 
 	// Swagger UI
@@ -39,11 +39,17 @@ func NewRouter(
 	})
 	r.Get("/swagger/", swaggerUIHandler)
 
+	// Internal routes — only reachable by trusted services presenting X-Internal-Key
+	r.Group(func(r chi.Router) {
+		r.Use(custommiddleware.InternalAuthenticate(internalAPIKey))
+		r.Post("/internal/token", tokenHandler.IssueInternal)
+	})
+
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", healthHandler.Health)
 
-		// Public: issue JWT for mobile clients authenticated via curiosity-api SSO
-		r.Post("/token", tokenHandler.Issue)
+		// Public: refresh access token using a valid refresh token
+		r.Post("/token/refresh", tokenHandler.Refresh)
 
 		// WebSocket — auth via first frame (no middleware needed)
 		r.Get("/ws", wsHandler.ServeWS)
@@ -65,7 +71,6 @@ func NewRouter(
 	return r
 }
 
-// swaggerDocHandler serves docs/swagger.json.
 func swaggerDocHandler(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile("docs/swagger.json")
 	if err != nil {
@@ -76,7 +81,6 @@ func swaggerDocHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(data) //nolint:errcheck
 }
 
-// swaggerUIHandler serves a minimal Swagger UI backed by CDN assets.
 func swaggerUIHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, `<!DOCTYPE html>
