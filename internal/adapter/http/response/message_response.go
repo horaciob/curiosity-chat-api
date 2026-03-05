@@ -15,6 +15,7 @@ type MessageResponse struct {
 	Type           string  `jsonapi:"attr,type"`
 	Content        *string `jsonapi:"attr,content,omitempty"`
 	POIID          *string `jsonapi:"attr,poi_id,omitempty"`
+	Status         string  `jsonapi:"attr,status"`
 	CreatedAt      string  `jsonapi:"attr,created_at"`
 	Links          *jsonapi.Links
 }
@@ -28,6 +29,7 @@ func NewMessageResponse(m *entity.Message) *MessageResponse {
 		Type:           m.Type,
 		Content:        m.Content,
 		POIID:          m.POIID,
+		Status:         m.Status,
 		CreatedAt:      m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		Links: &jsonapi.Links{
 			"self": fmt.Sprintf("/api/v1/conversations/%s/messages/%s", m.ConversationID, m.ID),

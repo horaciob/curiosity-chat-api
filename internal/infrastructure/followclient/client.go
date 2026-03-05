@@ -41,7 +41,7 @@ func (c *Client) AreFollowing(ctx context.Context, userA, userB string) (bool, e
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("curiosity-api returned status %d", resp.StatusCode)
+		return false, fmt.Errorf("user-api returned status %d", resp.StatusCode)
 	}
 
 	var body mutualFollowResponse

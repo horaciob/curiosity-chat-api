@@ -7,25 +7,23 @@ import (
 
 // Config holds all application configuration.
 type Config struct {
-	ServerPort      string
-	DSN             string
-	InternalAPIKey  string
-	CuriosityAPIURL string
-	AuthAPIURL      string
-	LogLevel        string
-	LogFormat       string
+	ServerPort string
+	DSN        string
+	InternalAPIKey string
+	UserAPIURL string
+	LogLevel   string
+	LogFormat  string
 }
 
 // Load reads environment variables and returns a Config.
 func Load() *Config {
 	return &Config{
-		ServerPort:      getEnv("SERVER_PORT", "8081"),
-		DSN:             buildDSN(),
-		InternalAPIKey:  mustEnv("INTERNAL_API_KEY"),
-		CuriosityAPIURL: getEnv("CURIOSITY_API_URL", "http://localhost:8080"),
-		AuthAPIURL:      getEnv("AUTH_API_URL", "http://localhost:8082"),
-		LogLevel:        getEnv("LOG_LEVEL", "info"),
-		LogFormat:       getEnv("LOG_FORMAT", "console"),
+		ServerPort:     getEnv("SERVER_PORT", "8081"),
+		DSN:            buildDSN(),
+		InternalAPIKey: mustEnv("INTERNAL_API_KEY"),
+		UserAPIURL:     getEnv("USER_API_URL", "http://localhost:8084"),
+		LogLevel:       getEnv("LOG_LEVEL", "info"),
+		LogFormat:      getEnv("LOG_FORMAT", "console"),
 	}
 }
 

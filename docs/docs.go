@@ -357,6 +357,23 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/ws": {
+            "get": {
+                "description": "Upgrades to WebSocket. The first client frame must be an auth message: {\"type\":\"auth\",\"token\":\"\u003cjwt\u003e\"}",
+                "tags": [
+                    "websocket"
+                ],
+                "summary": "Open a WebSocket connection",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                }
+            }
         }
     },
     "definitions": {

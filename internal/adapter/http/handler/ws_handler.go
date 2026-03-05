@@ -24,6 +24,7 @@ type WSHandler struct {
 	hub           *ws.Hub
 	sendMessageUC *message.SendMessage
 	convRepo      message.ConversationRepository
+	msgRepo       message.Repository
 	jwtValidator  middleware.TokenValidator
 	logger        *zap.Logger
 }
@@ -33,6 +34,7 @@ func NewWSHandler(
 	hub *ws.Hub,
 	sendMessageUC *message.SendMessage,
 	convRepo message.ConversationRepository,
+	msgRepo message.Repository,
 	jwtValidator middleware.TokenValidator,
 	logger *zap.Logger,
 ) *WSHandler {
@@ -40,6 +42,7 @@ func NewWSHandler(
 		hub:           hub,
 		sendMessageUC: sendMessageUC,
 		convRepo:      convRepo,
+		msgRepo:       msgRepo,
 		jwtValidator:  jwtValidator,
 		logger:        logger,
 	}
@@ -147,39 +150,106 @@ func (h *WSHandler) readPump(client *ws.Client) {
 
 		ctx := context.Background()
 
-		msg, err := h.sendMessageUC.Execute(ctx, incoming.ConversationID, client.UserID, message.SendMessageInput{
-			Type:    incoming.Type,
-			Content: incoming.Content,
-			POIID:   incoming.POIID,
-		})
-		if err != nil {
-			h.logger.Warn("failed to save ws message",
-				zap.String("user_id", client.UserID),
-				zap.Error(err))
-			continue
+		switch incoming.Type {
+		case "typing":
+			h.handleTyping(ctx, client, incoming)
+		case "read":
+			h.handleRead(ctx, client, incoming)
+		default:
+			h.handleChatMessage(ctx, client, incoming)
 		}
+	}
+}
 
-		outgoing := ws.OutgoingMessage{
-			ID:             msg.ID,
-			Type:           msg.Type,
-			ConversationID: msg.ConversationID,
-			SenderID:       msg.SenderID,
-			Content:        msg.Content,
-			POIID:          msg.POIID,
-			CreatedAt:      msg.CreatedAt,
+func (h *WSHandler) handleTyping(ctx context.Context, client *ws.Client, incoming ws.IncomingMessage) {
+	if incoming.ConversationID == "" {
+		return
+	}
+	conv, err := h.convRepo.GetByID(ctx, incoming.ConversationID)
+	if err != nil || !conv.HasParticipant(client.UserID) {
+		return
+	}
+	h.hub.BroadcastJSON(conv.OtherUserID(client.UserID), ws.TypingEvent{
+		Type:           "typing",
+		ConversationID: incoming.ConversationID,
+		SenderID:       client.UserID,
+		IsTyping:       incoming.IsTyping,
+	})
+}
+
+func (h *WSHandler) handleRead(ctx context.Context, client *ws.Client, incoming ws.IncomingMessage) {
+	if incoming.ConversationID == "" {
+		return
+	}
+	conv, err := h.convRepo.GetByID(ctx, incoming.ConversationID)
+	if err != nil || !conv.HasParticipant(client.UserID) {
+		return
+	}
+	lastID, err := h.msgRepo.MarkConversationRead(ctx, incoming.ConversationID, client.UserID)
+	if err != nil {
+		h.logger.Warn("failed to mark conversation as read",
+			zap.String("conversation_id", incoming.ConversationID),
+			zap.Error(err))
+		return
+	}
+	if lastID == "" {
+		return // nothing to notify
+	}
+	h.hub.BroadcastJSON(conv.OtherUserID(client.UserID), ws.ReadReceiptEvent{
+		Type:              "read_receipt",
+		ConversationID:    incoming.ConversationID,
+		LastReadMessageID: lastID,
+		ReaderID:          client.UserID,
+	})
+}
+
+func (h *WSHandler) handleChatMessage(ctx context.Context, client *ws.Client, incoming ws.IncomingMessage) {
+	msg, err := h.sendMessageUC.Execute(ctx, incoming.ConversationID, client.UserID, message.SendMessageInput{
+		Type:    incoming.Type,
+		Content: incoming.Content,
+		POIID:   incoming.POIID,
+	})
+	if err != nil {
+		h.logger.Warn("failed to save ws message",
+			zap.String("user_id", client.UserID),
+			zap.Error(err))
+		return
+	}
+
+	outgoing := ws.OutgoingMessage{
+		ID:             msg.ID,
+		Type:           msg.Type,
+		ConversationID: msg.ConversationID,
+		SenderID:       msg.SenderID,
+		Content:        msg.Content,
+		POIID:          msg.POIID,
+		Status:         msg.Status,
+		CreatedAt:      msg.CreatedAt,
+	}
+
+	// Push echo to sender (multi-device support)
+	h.hub.BroadcastTo(client.UserID, outgoing)
+
+	// Resolve conversation to find the other participant
+	conv, err := h.convRepo.GetByID(ctx, msg.ConversationID)
+	if err != nil {
+		h.logger.Warn("failed to resolve conversation for broadcast",
+			zap.String("conversation_id", msg.ConversationID),
+			zap.Error(err))
+		return
+	}
+
+	otherUserID := conv.OtherUserID(client.UserID)
+	h.hub.BroadcastTo(otherUserID, outgoing)
+
+	// If the recipient is online, mark as delivered immediately
+	if h.hub.IsOnline(otherUserID) {
+		if updateErr := h.msgRepo.UpdateStatus(ctx, msg.ID, "delivered"); updateErr == nil {
+			h.hub.BroadcastJSON(client.UserID, ws.DeliveredEvent{
+				Type:           "delivered",
+				ConversationID: msg.ConversationID,
+				MessageID:      msg.ID,
+			})
 		}
-
-		// Push to sender (for multi-device support)
-		h.hub.BroadcastTo(client.UserID, outgoing)
-
-		// Push to the other participant in the conversation
-		conv, err := h.convRepo.GetByID(ctx, msg.ConversationID)
-		if err != nil {
-			h.logger.Warn("failed to resolve conversation for broadcast",
-				zap.String("conversation_id", msg.ConversationID),
-				zap.Error(err))
-			continue
-		}
-		h.hub.BroadcastTo(conv.OtherUserID(client.UserID), outgoing)
 	}
 }

@@ -17,14 +17,15 @@ const (
 
 // IncomingMessage is the JSON structure sent by a WebSocket client.
 type IncomingMessage struct {
-	Type           string `json:"type"`                      // "auth" | "text" | "poi_share"
-	Token          string `json:"token,omitempty"`            // only for type="auth"
+	Type           string `json:"type"`                       // "auth" | "text" | "poi_share" | "typing" | "read"
+	Token          string `json:"token,omitempty"`             // only for type="auth"
 	ConversationID string `json:"conversation_id,omitempty"`
 	Content        string `json:"content,omitempty"`
 	POIID          string `json:"poi_id,omitempty"`
+	IsTyping       bool   `json:"is_typing,omitempty"` // for type="typing"
 }
 
-// OutgoingMessage is the JSON structure pushed to WebSocket clients.
+// OutgoingMessage is the JSON structure pushed to WebSocket clients for chat messages.
 type OutgoingMessage struct {
 	ID             string    `json:"id"`
 	Type           string    `json:"type"`
@@ -32,7 +33,31 @@ type OutgoingMessage struct {
 	SenderID       string    `json:"sender_id"`
 	Content        *string   `json:"content,omitempty"`
 	POIID          *string   `json:"poi_id,omitempty"`
+	Status         string    `json:"status"`
 	CreatedAt      time.Time `json:"created_at"`
+}
+
+// TypingEvent is pushed to the recipient when the sender starts/stops typing.
+type TypingEvent struct {
+	Type           string `json:"type"` // "typing"
+	ConversationID string `json:"conversation_id"`
+	SenderID       string `json:"sender_id"`
+	IsTyping       bool   `json:"is_typing"`
+}
+
+// DeliveredEvent is pushed to the sender when the message is delivered to the recipient.
+type DeliveredEvent struct {
+	Type           string `json:"type"` // "delivered"
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+}
+
+// ReadReceiptEvent is pushed to the sender when the recipient reads the messages.
+type ReadReceiptEvent struct {
+	Type              string `json:"type"` // "read_receipt"
+	ConversationID    string `json:"conversation_id"`
+	LastReadMessageID string `json:"last_read_message_id"`
+	ReaderID          string `json:"reader_id"`
 }
 
 type broadcastEnvelope struct {
@@ -118,6 +143,23 @@ func (h *Hub) BroadcastTo(userID string, msg OutgoingMessage) {
 		return
 	}
 	h.broadcast <- broadcastEnvelope{targetUserID: userID, payload: data}
+}
+
+// BroadcastJSON serializes v as JSON and sends it to all connections of the given user.
+// Use this for control frames (typing, delivered, read_receipt).
+func (h *Hub) BroadcastJSON(userID string, v any) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	h.broadcast <- broadcastEnvelope{targetUserID: userID, payload: data}
+}
+
+// IsOnline returns true if the user has at least one active WebSocket connection.
+func (h *Hub) IsOnline(userID string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients[userID]) > 0
 }
 
 // WritePump pumps messages from the hub to the WebSocket connection.

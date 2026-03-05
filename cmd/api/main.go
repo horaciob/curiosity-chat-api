@@ -62,10 +62,10 @@ func main() {
 
 	// Follow checker
 	var followChecker conversation.FollowChecker
-	if cfg.CuriosityAPIURL == "" {
+	if cfg.UserAPIURL == "" {
 		followChecker = followclient.NoopFollowChecker{}
 	} else {
-		followChecker = followclient.NewClient(cfg.CuriosityAPIURL, cfg.InternalAPIKey)
+		followChecker = followclient.NewClient(cfg.UserAPIURL, cfg.InternalAPIKey)
 	}
 
 	// Use cases — conversation
@@ -77,8 +77,8 @@ func main() {
 	sendMessageUC := message.NewSendMessage(msgRepo, convRepo)
 	getMessagesUC := message.NewGetMessages(msgRepo, convRepo)
 
-	// Auth client — delegates token validation to curiosity-auth-api
-	authClient := authclient.NewClient(cfg.AuthAPIURL, cfg.InternalAPIKey)
+	// Auth client — delegates token validation to curiosity-user-api
+	authClient := authclient.NewClient(cfg.UserAPIURL, cfg.InternalAPIKey)
 
 	// WebSocket hub
 	hub := ws.NewHub()
@@ -88,7 +88,7 @@ func main() {
 	healthHandler := handler.NewHealthHandler()
 	conversationHandler := handler.NewConversationHandler(createConversationUC, getConversationUC, listConversationsUC)
 	messageHandler := handler.NewMessageHandler(sendMessageUC, getMessagesUC)
-	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, authClient, logger)
+	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, msgRepo, authClient, logger)
 
 	// Router
 	r := router.NewRouter(healthHandler, conversationHandler, messageHandler, wsHandler, authClient, cfg.InternalAPIKey)

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Client calls curiosity-auth-api for token validation.
+// Client calls curiosity-user-api for token validation.
 type Client struct {
 	baseURL     string
 	internalKey string

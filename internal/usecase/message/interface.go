@@ -12,6 +12,11 @@ type Repository interface {
 	Create(ctx context.Context, m *entity.Message) error
 	ListByConversation(ctx context.Context, conversationID string, limit, offset int) ([]*entity.Message, error)
 	CountByConversation(ctx context.Context, conversationID string) (int, error)
+	// UpdateStatus updates the delivery status of a single message.
+	UpdateStatus(ctx context.Context, messageID, status string) error
+	// MarkConversationRead marks all unread messages from other participants as read.
+	// Returns the ID of the most recently read message, or empty string if nothing changed.
+	MarkConversationRead(ctx context.Context, conversationID, readerID string) (string, error)
 }
 
 // ConversationRepository provides read/update access to conversations from message use cases.

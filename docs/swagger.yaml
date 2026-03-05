@@ -248,6 +248,18 @@ paths:
       summary: Health check
       tags:
       - health
+  /ws:
+    get:
+      description: 'Upgrades to WebSocket. The first client frame must be an auth
+        message: {"type":"auth","token":"<jwt>"}'
+      responses:
+        "101":
+          description: Switching Protocols
+        "401":
+          description: Unauthorized
+      summary: Open a WebSocket connection
+      tags:
+      - websocket
 schemes:
 - http
 securityDefinitions:

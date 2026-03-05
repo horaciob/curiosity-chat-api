@@ -6,7 +6,7 @@ Real-time 1-on-1 chat microservice for the Curiosity platform.
 - **Module**: `github.com/horaciobranciforte/curiosity-chat-api`
 - **Port**: `8081`
 - **DB**: PostgreSQL 15, database `curiosity_chat`, port `5434` (test: `5435`)
-- **Related service**: `curiosity-api` on port `8080` (provides JWT tokens and follow graph)
+- **Related service**: `curiosity-user-api` on port `8084` (provides JWT validation and follow graph)
 
 ## Mandatory Conventions
 
