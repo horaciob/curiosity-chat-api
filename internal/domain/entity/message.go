@@ -15,6 +15,7 @@ const (
 	ShareIntentMustGo     = "must_go"
 	ShareIntentComeWithMe = "come_with_me"
 	ShareIntentInvite     = "invite"
+	ShareIntentInviteMe   = "invite_me"
 )
 
 const (
@@ -31,7 +32,7 @@ type Message struct {
 	Type           string
 	Content        *string // text content for type=text; POI title for type=poi_share
 	POIID          *string // non-nil for type=poi_share
-	ShareIntent    *string // "must_go" | "come_with_me" | "invite" — only for type=poi_share
+	ShareIntent    *string // "must_go" | "come_with_me" | "invite" | "invite_me" — only for type=poi_share
 	Status         string
 	CreatedAt      time.Time
 }

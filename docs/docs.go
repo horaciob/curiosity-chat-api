@@ -394,6 +394,9 @@ const docTemplate = `{
                 "poi_id": {
                     "type": "string"
                 },
+                "share_intent": {
+                    "type": "string"
+                },
                 "type": {
                     "type": "string"
                 }
