@@ -29,9 +29,10 @@ func NewMessageHandler(
 }
 
 type sendMessageRequest struct {
-	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
-	POIID   string `json:"poi_id,omitempty"`
+	Type        string `json:"type"`
+	Content     string `json:"content,omitempty"`
+	POIID       string `json:"poi_id,omitempty"`
+	ShareIntent string `json:"share_intent,omitempty"`
 }
 
 // Send handles POST /api/v1/conversations/{id}/messages.
@@ -62,9 +63,10 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 	}
 
 	msg, err := h.sendMessageUC.Execute(r.Context(), conversationID, senderID, message.SendMessageInput{
-		Type:    req.Type,
-		Content: req.Content,
-		POIID:   req.POIID,
+		Type:        req.Type,
+		Content:     req.Content,
+		POIID:       req.POIID,
+		ShareIntent: req.ShareIntent,
 	})
 	if err != nil {
 		handleUseCaseError(w, err)

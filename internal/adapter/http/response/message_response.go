@@ -15,6 +15,7 @@ type MessageResponse struct {
 	Type           string  `jsonapi:"attr,type"`
 	Content        *string `jsonapi:"attr,content,omitempty"`
 	POIID          *string `jsonapi:"attr,poi_id,omitempty"`
+	ShareIntent    *string `jsonapi:"attr,share_intent,omitempty"`
 	Status         string  `jsonapi:"attr,status"`
 	CreatedAt      string  `jsonapi:"attr,created_at"`
 	Links          *jsonapi.Links
@@ -29,6 +30,7 @@ func NewMessageResponse(m *entity.Message) *MessageResponse {
 		Type:           m.Type,
 		Content:        m.Content,
 		POIID:          m.POIID,
+		ShareIntent:    m.ShareIntent,
 		Status:         m.Status,
 		CreatedAt:      m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		Links: &jsonapi.Links{

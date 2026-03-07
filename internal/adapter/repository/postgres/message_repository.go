@@ -27,6 +27,7 @@ type messageRow struct {
 	Type           string    `db:"type"`
 	Content        *string   `db:"content"`
 	POIID          *string   `db:"poi_id"`
+	ShareIntent    *string   `db:"share_intent"`
 	Status         string    `db:"status"`
 	CreatedAt      time.Time `db:"created_at"`
 }
@@ -39,20 +40,21 @@ func (r messageRow) toEntity() *entity.Message {
 		Type:           r.Type,
 		Content:        r.Content,
 		POIID:          r.POIID,
+		ShareIntent:    r.ShareIntent,
 		Status:         r.Status,
 		CreatedAt:      r.CreatedAt,
 	}
 }
 
 func (r *MessageRepository) Create(ctx context.Context, m *entity.Message) error {
-	q := `INSERT INTO messages (id, conversation_id, sender_id, type, content, poi_id, status, created_at)
-	      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-	_, err := r.db.ExecContext(ctx, q, m.ID, m.ConversationID, m.SenderID, m.Type, m.Content, m.POIID, m.Status, m.CreatedAt)
+	q := `INSERT INTO messages (id, conversation_id, sender_id, type, content, poi_id, share_intent, status, created_at)
+	      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	_, err := r.db.ExecContext(ctx, q, m.ID, m.ConversationID, m.SenderID, m.Type, m.Content, m.POIID, m.ShareIntent, m.Status, m.CreatedAt)
 	return err
 }
 
 func (r *MessageRepository) ListByConversation(ctx context.Context, conversationID string, limit, offset int) ([]*entity.Message, error) {
-	q := `SELECT id, conversation_id, sender_id, type, content, poi_id, status, created_at
+	q := `SELECT id, conversation_id, sender_id, type, content, poi_id, share_intent, status, created_at
 	      FROM messages
 	      WHERE conversation_id = $1
 	      ORDER BY created_at DESC

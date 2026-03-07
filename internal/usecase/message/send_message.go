@@ -11,9 +11,10 @@ import (
 
 // SendMessageInput carries the parameters for sending a message.
 type SendMessageInput struct {
-	Type    string // "text" or "poi_share"
-	Content string // required for type=text
-	POIID   string // required for type=poi_share
+	Type        string // "text" or "poi_share"
+	Content     string // required for type=text; POI title for type=poi_share
+	POIID       string // required for type=poi_share
+	ShareIntent string // "must_go" | "come_with_me" | "invite" — optional, only for type=poi_share
 }
 
 // SendMessage sends a message to an existing conversation.
@@ -65,7 +66,7 @@ func (uc *SendMessage) Execute(ctx context.Context, conversationID, senderID str
 		if _, err := uuid.Parse(in.POIID); err != nil {
 			return nil, apperror.Validation("invalid poi_id format", domerrors.ErrInvalidMessageType)
 		}
-		msg = entity.NewPOIShareMessage(conversationID, senderID, in.POIID)
+		msg = entity.NewPOIShareMessage(conversationID, senderID, in.POIID, in.Content, in.ShareIntent)
 	default:
 		return nil, apperror.Validation("type must be 'text' or 'poi_share'", domerrors.ErrInvalidMessageType)
 	}
