@@ -29,3 +29,13 @@ func (m *MessageRepositoryMock) CountByConversation(ctx context.Context, convers
 	args := m.Called(ctx, conversationID)
 	return args.Int(0), args.Error(1)
 }
+
+func (m *MessageRepositoryMock) UpdateStatus(ctx context.Context, messageID, status string) error {
+	args := m.Called(ctx, messageID, status)
+	return args.Error(0)
+}
+
+func (m *MessageRepositoryMock) MarkConversationRead(ctx context.Context, conversationID, readerID string) (string, error) {
+	args := m.Called(ctx, conversationID, readerID)
+	return args.String(0), args.Error(1)
+}

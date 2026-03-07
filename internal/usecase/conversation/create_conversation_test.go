@@ -16,38 +16,38 @@ import (
 
 func TestCreateConversationSuccess(t *testing.T) {
 	repo := new(mocks.ConversationRepositoryMock)
-	checker := new(mocks.FollowCheckerMock)
-	uc := NewCreateConversation(repo, checker)
+	fc := new(mocks.FollowCheckerMock)
+	uc := NewCreateConversation(repo, fc)
 
 	ctx := context.Background()
 	userA := uuid.New().String()
 	userB := uuid.New().String()
 
-	checker.On("AreFollowing", ctx, userA, userB).Return(true, nil)
-	repo.On("GetByParticipants", ctx, mock.Anything, mock.Anything).Return(nil, apperror.NotFound("not found", nil))
+	fc.On("AreFollowing", ctx, userA, userB).Return(true, nil)
+	repo.On("GetByParticipants", ctx, userA, userB).Return(nil, apperror.NotFound("not found", nil))
 	repo.On("Create", ctx, mock.AnythingOfType("*entity.Conversation")).Return(nil)
 
 	conv, err := uc.Execute(ctx, userA, userB)
 
 	require.NoError(t, err)
-	assert.NotNil(t, conv)
+	require.NotNil(t, conv)
 	assert.NotEmpty(t, conv.ID)
 	repo.AssertExpectations(t)
-	checker.AssertExpectations(t)
+	fc.AssertExpectations(t)
 }
 
 func TestCreateConversationReturnsExisting(t *testing.T) {
 	repo := new(mocks.ConversationRepositoryMock)
-	checker := new(mocks.FollowCheckerMock)
-	uc := NewCreateConversation(repo, checker)
+	fc := new(mocks.FollowCheckerMock)
+	uc := NewCreateConversation(repo, fc)
 
 	ctx := context.Background()
 	userA := uuid.New().String()
 	userB := uuid.New().String()
 	existing := entity.NewConversation(userA, userB)
 
-	checker.On("AreFollowing", ctx, userA, userB).Return(true, nil)
-	repo.On("GetByParticipants", ctx, mock.Anything, mock.Anything).Return(existing, nil)
+	fc.On("AreFollowing", ctx, userA, userB).Return(true, nil)
+	repo.On("GetByParticipants", ctx, userA, userB).Return(existing, nil)
 
 	conv, err := uc.Execute(ctx, userA, userB)
 
@@ -57,61 +57,106 @@ func TestCreateConversationReturnsExisting(t *testing.T) {
 }
 
 func TestCreateConversationEmptyRequesterID(t *testing.T) {
-	repo := new(mocks.ConversationRepositoryMock)
-	checker := new(mocks.FollowCheckerMock)
-	uc := NewCreateConversation(repo, checker)
+	uc := NewCreateConversation(new(mocks.ConversationRepositoryMock), new(mocks.FollowCheckerMock))
 
 	_, err := uc.Execute(context.Background(), "", uuid.New().String())
 
 	require.Error(t, err)
+	assert.True(t, apperror.IsValidation(err))
 	assert.Contains(t, err.Error(), "requester ID is required")
-	checker.AssertNotCalled(t, "AreFollowing")
+}
+
+func TestCreateConversationInvalidRequesterID(t *testing.T) {
+	uc := NewCreateConversation(new(mocks.ConversationRepositoryMock), new(mocks.FollowCheckerMock))
+
+	_, err := uc.Execute(context.Background(), "not-a-uuid", uuid.New().String())
+
+	require.Error(t, err)
+	assert.True(t, apperror.IsValidation(err))
+	assert.Contains(t, err.Error(), "invalid requester ID format")
+}
+
+func TestCreateConversationEmptyTargetID(t *testing.T) {
+	uc := NewCreateConversation(new(mocks.ConversationRepositoryMock), new(mocks.FollowCheckerMock))
+
+	_, err := uc.Execute(context.Background(), uuid.New().String(), "")
+
+	require.Error(t, err)
+	assert.True(t, apperror.IsValidation(err))
+	assert.Contains(t, err.Error(), "target user ID is required")
+}
+
+func TestCreateConversationInvalidTargetID(t *testing.T) {
+	uc := NewCreateConversation(new(mocks.ConversationRepositoryMock), new(mocks.FollowCheckerMock))
+
+	_, err := uc.Execute(context.Background(), uuid.New().String(), "not-a-uuid")
+
+	require.Error(t, err)
+	assert.True(t, apperror.IsValidation(err))
+	assert.Contains(t, err.Error(), "invalid target user ID format")
 }
 
 func TestCreateConversationSelfConversation(t *testing.T) {
-	repo := new(mocks.ConversationRepositoryMock)
-	checker := new(mocks.FollowCheckerMock)
-	uc := NewCreateConversation(repo, checker)
-
+	uc := NewCreateConversation(new(mocks.ConversationRepositoryMock), new(mocks.FollowCheckerMock))
 	id := uuid.New().String()
+
 	_, err := uc.Execute(context.Background(), id, id)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot start a conversation with yourself")
-	checker.AssertNotCalled(t, "AreFollowing")
+	assert.True(t, apperror.IsValidation(err))
+	assert.Contains(t, err.Error(), "yourself")
 }
 
-func TestCreateConversationNotFollowing(t *testing.T) {
+func TestCreateConversationUsersNotFollowing(t *testing.T) {
 	repo := new(mocks.ConversationRepositoryMock)
-	checker := new(mocks.FollowCheckerMock)
-	uc := NewCreateConversation(repo, checker)
+	fc := new(mocks.FollowCheckerMock)
+	uc := NewCreateConversation(repo, fc)
 
 	ctx := context.Background()
 	userA := uuid.New().String()
 	userB := uuid.New().String()
 
-	checker.On("AreFollowing", ctx, userA, userB).Return(false, nil)
+	fc.On("AreFollowing", ctx, userA, userB).Return(false, nil)
 
 	_, err := uc.Execute(ctx, userA, userB)
 
 	require.Error(t, err)
 	assert.True(t, apperror.IsForbidden(err))
-	repo.AssertNotCalled(t, "Create")
+	repo.AssertNotCalled(t, "GetByParticipants")
 }
 
-func TestCreateConversationFollowCheckerError(t *testing.T) {
+func TestCreateConversationFollowCheckFails(t *testing.T) {
 	repo := new(mocks.ConversationRepositoryMock)
-	checker := new(mocks.FollowCheckerMock)
-	uc := NewCreateConversation(repo, checker)
+	fc := new(mocks.FollowCheckerMock)
+	uc := NewCreateConversation(repo, fc)
 
 	ctx := context.Background()
 	userA := uuid.New().String()
 	userB := uuid.New().String()
 
-	checker.On("AreFollowing", ctx, userA, userB).Return(false, errors.New("service unavailable"))
+	fc.On("AreFollowing", ctx, userA, userB).Return(false, errors.New("service unavailable"))
 
 	_, err := uc.Execute(ctx, userA, userB)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to check follow relationship")
+}
+
+func TestCreateConversationCreateFails(t *testing.T) {
+	repo := new(mocks.ConversationRepositoryMock)
+	fc := new(mocks.FollowCheckerMock)
+	uc := NewCreateConversation(repo, fc)
+
+	ctx := context.Background()
+	userA := uuid.New().String()
+	userB := uuid.New().String()
+
+	fc.On("AreFollowing", ctx, userA, userB).Return(true, nil)
+	repo.On("GetByParticipants", ctx, userA, userB).Return(nil, apperror.NotFound("not found", nil))
+	repo.On("Create", ctx, mock.AnythingOfType("*entity.Conversation")).Return(errors.New("db error"))
+
+	_, err := uc.Execute(ctx, userA, userB)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create conversation")
 }

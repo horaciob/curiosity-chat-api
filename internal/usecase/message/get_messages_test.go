@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -12,48 +13,83 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func makeMsg(convID, senderID, content string) *entity.Message {
+	return entity.NewTextMessage(convID, senderID, content)
+}
+
 func TestGetMessagesSuccess(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
 	uc := NewGetMessages(msgRepo, convRepo)
 
 	ctx := context.Background()
-	senderID := uuid.New().String()
-	otherID := uuid.New().String()
-	conv := entity.NewConversation(senderID, otherID)
-
-	msgs := []*entity.Message{entity.NewTextMessage(conv.ID, senderID, "Hello")}
+	requesterID := uuid.New().String()
+	conv := makeConv(requesterID, uuid.New().String())
+	msgs := []*entity.Message{
+		makeMsg(conv.ID, requesterID, "hello"),
+		makeMsg(conv.ID, requesterID, "world"),
+	}
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
 	msgRepo.On("ListByConversation", ctx, conv.ID, 50, 0).Return(msgs, nil)
-	msgRepo.On("CountByConversation", ctx, conv.ID).Return(1, nil)
+	msgRepo.On("CountByConversation", ctx, conv.ID).Return(2, nil)
 
-	result, total, err := uc.Execute(ctx, conv.ID, senderID, 50, 0)
+	result, total, err := uc.Execute(ctx, conv.ID, requesterID, 50, 0)
 
 	require.NoError(t, err)
-	assert.Len(t, result, 1)
-	assert.Equal(t, 1, total)
+	assert.Len(t, result, 2)
+	assert.Equal(t, 2, total)
 	msgRepo.AssertExpectations(t)
 }
 
-func TestGetMessagesNotParticipant(t *testing.T) {
+func TestGetMessagesEmpty(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
 	uc := NewGetMessages(msgRepo, convRepo)
 
 	ctx := context.Background()
-	userA := uuid.New().String()
-	userB := uuid.New().String()
-	stranger := uuid.New().String()
-	conv := entity.NewConversation(userA, userB)
+	requesterID := uuid.New().String()
+	conv := makeConv(requesterID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
+	msgRepo.On("ListByConversation", ctx, conv.ID, 50, 0).Return([]*entity.Message{}, nil)
+	msgRepo.On("CountByConversation", ctx, conv.ID).Return(0, nil)
 
-	_, _, err := uc.Execute(ctx, conv.ID, stranger, 50, 0)
+	result, total, err := uc.Execute(ctx, conv.ID, requesterID, 50, 0)
+
+	require.NoError(t, err)
+	assert.Empty(t, result)
+	assert.Zero(t, total)
+}
+
+func TestGetMessagesEmptyConversationID(t *testing.T) {
+	uc := NewGetMessages(new(mocks.MessageRepositoryMock), new(mocks.ConversationRepositoryMock))
+
+	_, _, err := uc.Execute(context.Background(), "", uuid.New().String(), 50, 0)
 
 	require.Error(t, err)
-	assert.True(t, apperror.IsForbidden(err))
-	msgRepo.AssertNotCalled(t, "ListByConversation")
+	assert.True(t, apperror.IsValidation(err))
+	assert.Contains(t, err.Error(), "conversation ID is required")
+}
+
+func TestGetMessagesInvalidConversationID(t *testing.T) {
+	uc := NewGetMessages(new(mocks.MessageRepositoryMock), new(mocks.ConversationRepositoryMock))
+
+	_, _, err := uc.Execute(context.Background(), "bad-id", uuid.New().String(), 50, 0)
+
+	require.Error(t, err)
+	assert.True(t, apperror.IsValidation(err))
+	assert.Contains(t, err.Error(), "invalid conversation ID format")
+}
+
+func TestGetMessagesEmptyRequesterID(t *testing.T) {
+	uc := NewGetMessages(new(mocks.MessageRepositoryMock), new(mocks.ConversationRepositoryMock))
+
+	_, _, err := uc.Execute(context.Background(), uuid.New().String(), "", 50, 0)
+
+	require.Error(t, err)
+	assert.True(t, apperror.IsValidation(err))
+	assert.Contains(t, err.Error(), "requester ID is required")
 }
 
 func TestGetMessagesDefaultLimit(t *testing.T) {
@@ -62,26 +98,105 @@ func TestGetMessagesDefaultLimit(t *testing.T) {
 	uc := NewGetMessages(msgRepo, convRepo)
 
 	ctx := context.Background()
-	senderID := uuid.New().String()
-	conv := entity.NewConversation(senderID, uuid.New().String())
+	requesterID := uuid.New().String()
+	conv := makeConv(requesterID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
 	msgRepo.On("ListByConversation", ctx, conv.ID, 50, 0).Return([]*entity.Message{}, nil)
 	msgRepo.On("CountByConversation", ctx, conv.ID).Return(0, nil)
 
-	_, _, err := uc.Execute(ctx, conv.ID, senderID, 0, 0)
+	_, _, err := uc.Execute(ctx, conv.ID, requesterID, 0, 0)
 
 	require.NoError(t, err)
 	msgRepo.AssertExpectations(t)
 }
 
-func TestGetMessagesEmptyConversationID(t *testing.T) {
+func TestGetMessagesLimitCapped(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
 	uc := NewGetMessages(msgRepo, convRepo)
 
-	_, _, err := uc.Execute(context.Background(), "", uuid.New().String(), 50, 0)
+	ctx := context.Background()
+	requesterID := uuid.New().String()
+	conv := makeConv(requesterID, uuid.New().String())
+
+	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
+	msgRepo.On("ListByConversation", ctx, conv.ID, 100, 0).Return([]*entity.Message{}, nil)
+	msgRepo.On("CountByConversation", ctx, conv.ID).Return(0, nil)
+
+	_, _, err := uc.Execute(ctx, conv.ID, requesterID, 999, 0)
+
+	require.NoError(t, err)
+	msgRepo.AssertExpectations(t)
+}
+
+func TestGetMessagesConversationNotFound(t *testing.T) {
+	msgRepo := new(mocks.MessageRepositoryMock)
+	convRepo := new(mocks.ConversationRepositoryMock)
+	uc := NewGetMessages(msgRepo, convRepo)
+
+	ctx := context.Background()
+	convID := uuid.New().String()
+
+	convRepo.On("GetByID", ctx, convID).Return(nil, apperror.NotFound("not found", nil))
+
+	_, _, err := uc.Execute(ctx, convID, uuid.New().String(), 50, 0)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "conversation ID is required")
+	assert.True(t, apperror.IsNotFound(err))
+}
+
+func TestGetMessagesNotParticipant(t *testing.T) {
+	msgRepo := new(mocks.MessageRepositoryMock)
+	convRepo := new(mocks.ConversationRepositoryMock)
+	uc := NewGetMessages(msgRepo, convRepo)
+
+	ctx := context.Background()
+	conv := makeConv(uuid.New().String(), uuid.New().String())
+	outsider := uuid.New().String()
+
+	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
+
+	_, _, err := uc.Execute(ctx, conv.ID, outsider, 50, 0)
+
+	require.Error(t, err)
+	assert.True(t, apperror.IsForbidden(err))
+}
+
+func TestGetMessagesListFails(t *testing.T) {
+	msgRepo := new(mocks.MessageRepositoryMock)
+	convRepo := new(mocks.ConversationRepositoryMock)
+	uc := NewGetMessages(msgRepo, convRepo)
+
+	ctx := context.Background()
+	requesterID := uuid.New().String()
+	conv := makeConv(requesterID, uuid.New().String())
+
+	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
+	msgRepo.On("ListByConversation", ctx, conv.ID, 50, 0).Return(nil, errors.New("db error"))
+
+	_, _, err := uc.Execute(ctx, conv.ID, requesterID, 50, 0)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get messages")
+	msgRepo.AssertNotCalled(t, "CountByConversation")
+}
+
+func TestGetMessagesCountFails(t *testing.T) {
+	msgRepo := new(mocks.MessageRepositoryMock)
+	convRepo := new(mocks.ConversationRepositoryMock)
+	uc := NewGetMessages(msgRepo, convRepo)
+
+	ctx := context.Background()
+	requesterID := uuid.New().String()
+	conv := makeConv(requesterID, uuid.New().String())
+
+	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
+	msgRepo.On("ListByConversation", ctx, conv.ID, 50, 0).Return([]*entity.Message{}, nil)
+	msgRepo.On("CountByConversation", ctx, conv.ID).Return(0, errors.New("db error"))
+
+	_, _, err := uc.Execute(ctx, conv.ID, requesterID, 50, 0)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to count messages")
 }
