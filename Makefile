@@ -6,8 +6,7 @@ DB_DSN=postgres://postgres:postgres@localhost:5434/curiosity_chat?sslmode=disabl
 DB_TEST_DSN=postgres://postgres:postgres@localhost:5435/curiosity_chat_test?sslmode=disable
 MIGRATIONS_DIR=./migrations
 
-.PHONY: help run build test test-short coverage fmt vet lint deps \
-        docs \
+.PHONY: help run build swag test test-short coverage fmt vet lint deps \
         migrate migrate-up migrate-down migrate-create migrate-version \
         migrate-up-test migrate-down-test \
         db-setup db-setup-test db-teardown db-teardown-test db-reset \
@@ -16,11 +15,14 @@ MIGRATIONS_DIR=./migrations
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-run: ## Build and run the API
-	go run $(MAIN_PATH)/main.go
+swag: ## Generate Swagger documentation
+	$(GOBIN)/swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
 
-build: docs ## Build the binary (generates docs first)
+build: swag ## Build the binary (generates docs first)
 	go build -o bin/$(BINARY_NAME) $(MAIN_PATH)/main.go
+
+run: swag build ## Generate docs, build, then run the API
+	./bin/$(BINARY_NAME)
 
 test: ## Run all tests with verbose output
 	go test -v ./...
@@ -41,9 +43,6 @@ lint: fmt vet ## Format and vet
 
 deps: ## Download and tidy dependencies
 	go mod download && go mod tidy
-
-docs: ## Generate Swagger documentation
-	$(GOBIN)/swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
 
 migrate: migrate-up migrate-up-test ## Run migrations on both prod and test DBs
 
