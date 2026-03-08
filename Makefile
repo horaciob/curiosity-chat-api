@@ -10,6 +10,7 @@ MIGRATIONS_DIR=./migrations
         migrate migrate-up migrate-down migrate-create migrate-version \
         migrate-up-test migrate-down-test \
         db-setup db-setup-test db-teardown db-teardown-test db-reset \
+        db-backup db-restore \
         install-tools
 
 help:
@@ -84,6 +85,28 @@ db-reset: ## Reset both databases
 	$(MAKE) db-teardown
 	$(MAKE) db-setup
 	$(MAKE) db-setup-test
+
+db-backup: ## Backup the database to a zip file in backups/
+	@mkdir -p backups
+	@timestamp=$$(date +%Y%m%d_%H%M%S); \
+	echo "Backing up database to backups/curiosity_chat_$$timestamp.sql"; \
+	docker compose exec -T postgres pg_dump -U postgres curiosity_chat > backups/curiosity_chat_$$timestamp.sql; \
+	zip -j backups/curiosity_chat_$$timestamp.zip backups/curiosity_chat_$$timestamp.sql; \
+	rm backups/curiosity_chat_$$timestamp.sql; \
+	echo "Backup completed: backups/curiosity_chat_$$timestamp.zip"
+
+db-restore: ## Restore database from a zip file (usage: make db-restore FILE=backups/curiosity_chat_YYYYMMDD_HHMMSS.zip)
+	@if [ -z "$(FILE)" ]; then \
+		echo "Error: FILE is required. Usage: make db-restore FILE=backups/curiosity_chat_YYYYMMDD_HHMMSS.zip"; \
+		exit 1; \
+	fi
+	@tmpdir=$$(mktemp -d); \
+	unzip -j $(FILE) -d $$tmpdir; \
+	sqlfile=$$(ls $$tmpdir/*.sql); \
+	echo "Restoring from $$sqlfile..."; \
+	docker compose exec -T postgres psql -U postgres -d curiosity_chat < $$sqlfile; \
+	rm -rf $$tmpdir; \
+	echo "Restore completed."
 
 install-tools: ## Install required CLI tools (migrate, swag)
 	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
