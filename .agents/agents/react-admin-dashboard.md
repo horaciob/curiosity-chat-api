@@ -1,6 +1,6 @@
 ---
 name: react-admin-dashboard
-description: "Use this agent when you need to build, improve, or review React-based admin dashboard interfaces. This includes creating data tables, charts, forms, navigation layouts, authentication flows, role-based access control UI, real-time data displays, and any other admin panel components. Examples:\\n\\n<example>\\nContext: The user needs a new admin dashboard page built in React.\\nuser: \"Create a users management page with a data table that supports sorting, filtering, and pagination\"\\nassistant: \"I'll use the react-admin-dashboard agent to build this for you.\"\\n<commentary>\\nSince the user needs a complex admin dashboard UI component, use the Task tool to launch the react-admin-dashboard agent to design and implement it.\\n</commentary>\\n</example>\\n\\n<example>\\nContext: The user wants to improve the UX of an existing admin panel.\\nuser: \"The sidebar navigation in our admin panel feels clunky and hard to use. Can you redesign it?\"\\nassistant: \"Let me use the react-admin-dashboard agent to redesign the sidebar with improved UX patterns.\"\\n<commentary>\\nSince this involves improving admin dashboard UX with React, use the Task tool to launch the react-admin-dashboard agent.\\n</commentary>\\n</example>\\n\\n<example>\\nContext: The user needs a dashboard with charts and KPI metrics.\\nuser: \"Build me an analytics overview page with revenue charts, user growth graphs, and KPI cards\"\\nassistant: \"I'll launch the react-admin-dashboard agent to build a polished analytics dashboard.\"\\n<commentary>\\nSince this is a data visualization admin dashboard task, use the Task tool to launch the react-admin-dashboard agent.\\n</commentary>\\n</example>"
+description: "Use this agent when you need to build, improve, or review React-based admin dashboard interfaces. This includes creating data tables, charts, forms, navigation layouts, authentication flows, role-based access control UI, real-time data displays, and any other admin panel components. Examples:\n\n<example>\nContext: The user needs a new admin dashboard page built in React.\nuser: \"Create a users management page with a data table that supports sorting, filtering, and pagination\"\nassistant: \"I'll use the react-admin-dashboard agent to build this for you.\"\n<commentary>\nSince the user needs a complex admin dashboard UI component, use the Task tool to launch the react-admin-dashboard agent to design and implement it.\n</commentary>\n</example>\n\n<example>\nContext: The user wants to improve the UX of an existing admin panel.\nuser: \"The sidebar navigation in our admin panel feels clunky and hard to use. Can you redesign it?\"\nassistant: \"Let me use the react-admin-dashboard agent to redesign the sidebar with improved UX patterns.\"\n<commentary>\nSince this involves improving admin dashboard UX with React, use the Task tool to launch the react-admin-dashboard agent.\n</commentary>\n</example>\n\n<example>\nContext: The user needs a dashboard with charts and KPI metrics.\nuser: \"Build me an analytics overview page with revenue charts, user growth graphs, and KPI cards\"\nassistant: \"I'll launch the react-admin-dashboard agent to build a polished analytics dashboard.\"\n<commentary>\nSince this is a data visualization admin dashboard task, use the Task tool to launch the react-admin-dashboard agent.\n</commentary>\n</example>"
 model: sonnet
 color: cyan
 memory: project
@@ -88,7 +88,7 @@ Examples of what to record:
 
 # Persistent Agent Memory
 
-You have a persistent Persistent Agent Memory directory at `/Users/horaciobranciforte/labs/curiosity/curiosity-chat-api/.claude/agent-memory/react-admin-dashboard/`. Its contents persist across conversations.
+You have a persistent Persistent Agent Memory directory at `/Users/horaciobranciforte/labs/curiosity/curiosity-chat-api/.agents/agent-memory/react-admin-dashboard/`. Its contents persist across conversations.
 
 As you work, consult your memory files to build on previous experience. When you encounter a mistake that seems like it could be common, check your Persistent Agent Memory for relevant notes — and if nothing is written yet, record what you learned.
 
@@ -108,7 +108,7 @@ What to save:
 What NOT to save:
 - Session-specific context (current task details, in-progress work, temporary state)
 - Information that might be incomplete — verify against project docs before writing
-- Anything that duplicates or contradicts existing CLAUDE.md instructions
+- Anything that duplicates or contradicts existing AGENTS.md instructions
 - Speculative or unverified conclusions from reading a single file
 
 Explicit user requests:
