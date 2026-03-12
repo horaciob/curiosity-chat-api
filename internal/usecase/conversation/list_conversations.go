@@ -3,10 +3,16 @@ package conversation
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/domain/entity"
 	domerrors "github.com/horaciobranciforte/curiosity-chat-api/internal/domain/errors"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/pkg/apperror"
+)
+
+const (
+	// DefaultConversationLimit is the default number of conversations to return
+	DefaultConversationLimit = 20
+	// MaxConversationLimit is the maximum allowed limit for pagination
+	MaxConversationLimit = 100
 )
 
 // ListConversations returns a paginated list of conversations for a user.
@@ -21,18 +27,15 @@ func NewListConversations(repo Repository) *ListConversations {
 
 // Execute returns conversations for userID ordered by last_message_at DESC.
 func (uc *ListConversations) Execute(ctx context.Context, userID string, limit, offset int) ([]*entity.Conversation, int, error) {
-	if userID == "" {
-		return nil, 0, apperror.Validation("user ID is required", domerrors.ErrInvalidUserID)
-	}
-	if _, err := uuid.Parse(userID); err != nil {
-		return nil, 0, apperror.Validation("invalid user ID format", domerrors.ErrInvalidUserID)
+	if err := apperror.ValidateUUID(userID, "user ID", domerrors.ErrInvalidUserID); err != nil {
+		return nil, 0, err
 	}
 
 	if limit <= 0 {
-		limit = 20
+		limit = DefaultConversationLimit
 	}
-	if limit > 100 {
-		limit = 100
+	if limit > MaxConversationLimit {
+		limit = MaxConversationLimit
 	}
 
 	convs, err := uc.repo.ListByUser(ctx, userID, limit, offset)

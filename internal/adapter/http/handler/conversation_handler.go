@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/middleware"
@@ -54,8 +53,14 @@ type createConversationRequest struct {
 func (h *ConversationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	requesterID := middleware.UserIDFromContext(r.Context())
 
+	r.Body = http.MaxBytesReader(w, r.Body, response.MaxRequestBodySize)
+	defer r.Body.Close()
 	var req createConversationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err.Error() == "http: request body too large" {
+			response.Error(w, http.StatusRequestEntityTooLarge, "Request Entity Too Large", "request body exceeds 1MB limit")
+			return
+		}
 		response.Error(w, http.StatusBadRequest, "Bad Request", "invalid request body")
 		return
 	}
@@ -111,18 +116,13 @@ func (h *ConversationHandler) Get(w http.ResponseWriter, r *http.Request) {
 //	@Router			/conversations [get]
 func (h *ConversationHandler) List(w http.ResponseWriter, r *http.Request) {
 	requesterID := middleware.UserIDFromContext(r.Context())
-	q := r.URL.Query()
-	limit, _ := strconv.Atoi(q.Get("page[limit]"))
-	offset, _ := strconv.Atoi(q.Get("page[offset]"))
-	if limit == 0 {
-		limit = 20
-	}
+	pagination := response.ParsePagination(r.URL.Query(), conversation.DefaultConversationLimit, conversation.MaxConversationLimit)
 
-	convs, total, err := h.listConversationsUC.Execute(r.Context(), requesterID, limit, offset)
+	convs, total, err := h.listConversationsUC.Execute(r.Context(), requesterID, pagination.Limit, pagination.Offset)
 	if err != nil {
 		handleUseCaseError(w, err)
 		return
 	}
 
-	response.Collection(w, response.NewConversationListResponse(convs), total, limit, offset, "/api/v1/conversations")
+	response.Collection(w, response.NewConversationListResponse(convs), total, pagination.Limit, pagination.Offset, "/api/v1/conversations")
 }

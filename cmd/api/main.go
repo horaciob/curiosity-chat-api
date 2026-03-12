@@ -13,9 +13,9 @@ import (
 	"go.uber.org/zap"
 
 	_ "github.com/horaciobranciforte/curiosity-chat-api/docs"
-	postgresrepo "github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/repository/postgres"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/handler"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/router"
+	postgresrepo "github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/repository/postgres"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/authclient"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/config"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/database"
@@ -69,7 +69,7 @@ func main() {
 	}
 
 	// Use cases — conversation
-	createConversationUC := conversation.NewCreateConversation(convRepo, followChecker)
+	createConversationUC := conversation.NewCreateConversation(convRepo)
 	getConversationUC := conversation.NewGetConversation(convRepo)
 	listConversationsUC := conversation.NewListConversations(convRepo)
 
@@ -91,7 +91,7 @@ func main() {
 	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, msgRepo, authClient, logger)
 
 	// Router
-	r := router.NewRouter(healthHandler, conversationHandler, messageHandler, wsHandler, authClient, cfg.InternalAPIKey)
+	r := router.NewRouter(healthHandler, conversationHandler, messageHandler, wsHandler, authClient, cfg.InternalAPIKey, cfg.AllowedOrigins)
 
 	// HTTP server
 	srv := &http.Server{

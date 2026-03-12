@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ---- NewConversation ----
@@ -89,7 +90,8 @@ func TestOtherUserIDFromUser1ReturnsUser2(t *testing.T) {
 	userB := uuid.New().String()
 	conv := NewConversation(userA, userB)
 
-	other := conv.OtherUserID(conv.User1ID)
+	other, err := conv.OtherUserID(conv.User1ID)
+	require.NoError(t, err)
 	assert.Equal(t, conv.User2ID, other)
 }
 
@@ -98,6 +100,19 @@ func TestOtherUserIDFromUser2ReturnsUser1(t *testing.T) {
 	userB := uuid.New().String()
 	conv := NewConversation(userA, userB)
 
-	other := conv.OtherUserID(conv.User2ID)
+	other, err := conv.OtherUserID(conv.User2ID)
+	require.NoError(t, err)
 	assert.Equal(t, conv.User1ID, other)
+}
+
+func TestOtherUserIDNotParticipantReturnsError(t *testing.T) {
+	userA := uuid.New().String()
+	userB := uuid.New().String()
+	conv := NewConversation(userA, userB)
+	outsider := uuid.New().String()
+
+	other, err := conv.OtherUserID(outsider)
+	assert.Error(t, err)
+	assert.Equal(t, "", other)
+	assert.ErrorIs(t, err, ErrNotParticipant)
 }

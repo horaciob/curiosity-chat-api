@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/google/uuid"
 )
 
 // Type represents the type of application error.
@@ -64,14 +66,16 @@ func (e *Error) HTTPStatus() int {
 	}
 }
 
-func NotFound(message string, err error) *Error      { return NewError(TypeNotFound, message, err) }
-func Validation(message string, err error) *Error    { return NewError(TypeValidation, message, err) }
-func Conflict(message string, err error) *Error      { return NewError(TypeConflict, message, err) }
-func AlreadyExists(message string, err error) *Error { return NewError(TypeAlreadyExists, message, err) }
-func Internal(message string, err error) *Error      { return NewError(TypeInternal, message, err) }
-func Unauthorized(message string, err error) *Error  { return NewError(TypeUnauthorized, message, err) }
-func Forbidden(message string, err error) *Error     { return NewError(TypeForbidden, message, err) }
-func BadRequest(message string, err error) *Error    { return NewError(TypeBadRequest, message, err) }
+func NotFound(message string, err error) *Error   { return NewError(TypeNotFound, message, err) }
+func Validation(message string, err error) *Error { return NewError(TypeValidation, message, err) }
+func Conflict(message string, err error) *Error   { return NewError(TypeConflict, message, err) }
+func AlreadyExists(message string, err error) *Error {
+	return NewError(TypeAlreadyExists, message, err)
+}
+func Internal(message string, err error) *Error     { return NewError(TypeInternal, message, err) }
+func Unauthorized(message string, err error) *Error { return NewError(TypeUnauthorized, message, err) }
+func Forbidden(message string, err error) *Error    { return NewError(TypeForbidden, message, err) }
+func BadRequest(message string, err error) *Error   { return NewError(TypeBadRequest, message, err) }
 
 func IsType(err error, t Type) bool {
 	var appErr *Error
@@ -82,3 +86,15 @@ func IsNotFound(err error) bool   { return IsType(err, TypeNotFound) }
 func IsConflict(err error) bool   { return IsType(err, TypeConflict) }
 func IsValidation(err error) bool { return IsType(err, TypeValidation) }
 func IsForbidden(err error) bool  { return IsType(err, TypeForbidden) }
+
+// ValidateUUID checks if the provided string is a valid UUID.
+// Returns a validation error if invalid or empty.
+func ValidateUUID(id string, fieldName string, sentinelErr error) error {
+	if id == "" {
+		return Validation(fmt.Sprintf("%s is required", fieldName), sentinelErr)
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		return Validation(fmt.Sprintf("invalid %s format", fieldName), sentinelErr)
+	}
+	return nil
+}

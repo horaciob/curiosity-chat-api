@@ -13,10 +13,39 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// WebSocket buffer sizes
+	wsReadBufferSize  = 1024
+	wsWriteBufferSize = 1024
+
+	// WebSocket operation timeout for DB operations
+	wsOperationTimeout = 10 * time.Second
+)
+
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin:     func(r *http.Request) bool { return true },
+	ReadBufferSize:  wsReadBufferSize,
+	WriteBufferSize: wsWriteBufferSize,
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		// Allow requests with no origin (non-browser clients)
+		if origin == "" {
+			return true
+		}
+		// For production, configure ALLOWED_ORIGINS env var
+		// For development, allow localhost
+		allowedOrigins := []string{
+			"http://localhost:3000",
+			"http://localhost:8080",
+			"https://localhost:3000",
+			"https://localhost:8080",
+		}
+		for _, allowed := range allowedOrigins {
+			if origin == allowed {
+				return true
+			}
+		}
+		return false
+	},
 }
 
 // WSHandler handles WebSocket connections.
@@ -51,18 +80,23 @@ func NewWSHandler(
 // ServeWS handles GET /api/v1/ws — upgrades the connection to WebSocket.
 //
 // Authentication flow (token never appears in the URL):
+//
 //  1. Client connects — no credentials needed in the URL.
+//
 //  2. Server upgrades to WebSocket immediately.
+//
 //  3. Client must send {"type":"auth","token":"<jwt>"} within 10 seconds.
+//
 //  4. Server validates the token. On success it replies {"type":"auth_ok"}.
+//
 //  5. On failure or timeout the connection is closed with a policy-violation code.
 //
-//	@Summary		Open a WebSocket connection
-//	@Description	Upgrades to WebSocket. The first client frame must be an auth message: {"type":"auth","token":"<jwt>"}
-//	@Tags			websocket
-//	@Success		101	"Switching Protocols"
-//	@Failure		401	"Unauthorized"
-//	@Router			/ws [get]
+//     @Summary		Open a WebSocket connection
+//     @Description	Upgrades to WebSocket. The first client frame must be an auth message: {"type":"auth","token":"<jwt>"}
+//     @Tags			websocket
+//     @Success		101	"Switching Protocols"
+//     @Failure		401	"Unauthorized"
+//     @Router			/ws [get]
 func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -73,10 +107,12 @@ func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.authenticate(conn)
 	if err != nil {
 		h.logger.Warn("websocket auth failed", zap.Error(err))
-		conn.WriteMessage( //nolint:errcheck
+		if writeErr := conn.WriteMessage(
 			websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "authentication failed"),
-		)
+		); writeErr != nil {
+			h.logger.Debug("failed to write close message", zap.Error(writeErr))
+		}
 		conn.Close()
 		return
 	}
@@ -84,7 +120,7 @@ func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 	client := &ws.Client{
 		UserID: userID,
 		Conn:   conn,
-		Send:   make(chan []byte, 256),
+		Send:   make(chan []byte, ws.ClientSendChanBufferSize),
 	}
 	h.hub.Register(client)
 	go client.WritePump()
@@ -95,8 +131,14 @@ func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
 // authenticate reads the first WebSocket frame and validates the auth token.
 // The client must send {"type":"auth","token":"<jwt>"} within AuthDeadline.
 func (h *WSHandler) authenticate(conn *websocket.Conn) (string, error) {
-	conn.SetReadDeadline(time.Now().Add(ws.AuthDeadline)) //nolint:errcheck
-	defer conn.SetReadDeadline(time.Time{})               //nolint:errcheck
+	if err := conn.SetReadDeadline(time.Now().Add(ws.AuthDeadline)); err != nil {
+		return "", err
+	}
+	defer func() {
+		if err := conn.SetReadDeadline(time.Time{}); err != nil {
+			h.logger.Debug("failed to reset read deadline", zap.Error(err))
+		}
+	}()
 
 	_, data, err := conn.ReadMessage()
 	if err != nil {
@@ -117,8 +159,14 @@ func (h *WSHandler) authenticate(conn *websocket.Conn) (string, error) {
 		return "", err
 	}
 
-	ack, _ := json.Marshal(map[string]string{"type": "auth_ok", "user_id": userID})
-	conn.WriteMessage(websocket.TextMessage, ack) //nolint:errcheck
+	ack, err := json.Marshal(map[string]string{"type": "auth_ok", "user_id": userID})
+	if err != nil {
+		return "", err
+	}
+	if err := conn.WriteMessage(websocket.TextMessage, ack); err != nil {
+		h.logger.Debug("failed to write auth ack", zap.Error(err))
+		return "", err
+	}
 
 	return userID, nil
 }
@@ -148,8 +196,8 @@ func (h *WSHandler) readPump(client *ws.Client) {
 			continue
 		}
 
-		ctx := context.Background()
-
+		// Use context with timeout for DB operations
+		ctx, cancel := context.WithTimeout(context.Background(), wsOperationTimeout)
 		switch incoming.Type {
 		case "typing":
 			h.handleTyping(ctx, client, incoming)
@@ -158,6 +206,7 @@ func (h *WSHandler) readPump(client *ws.Client) {
 		default:
 			h.handleChatMessage(ctx, client, incoming)
 		}
+		cancel()
 	}
 }
 
@@ -169,7 +218,15 @@ func (h *WSHandler) handleTyping(ctx context.Context, client *ws.Client, incomin
 	if err != nil || !conv.HasParticipant(client.UserID) {
 		return
 	}
-	h.hub.BroadcastJSON(conv.OtherUserID(client.UserID), ws.TypingEvent{
+	otherID, err := conv.OtherUserID(client.UserID)
+	if err != nil {
+		h.logger.Warn("failed to get other participant",
+			zap.String("conversation_id", incoming.ConversationID),
+			zap.String("user_id", client.UserID),
+			zap.Error(err))
+		return
+	}
+	h.hub.BroadcastJSON(otherID, ws.TypingEvent{
 		Type:           "typing",
 		ConversationID: incoming.ConversationID,
 		SenderID:       client.UserID,
@@ -195,7 +252,15 @@ func (h *WSHandler) handleRead(ctx context.Context, client *ws.Client, incoming 
 	if lastID == "" {
 		return // nothing to notify
 	}
-	h.hub.BroadcastJSON(conv.OtherUserID(client.UserID), ws.ReadReceiptEvent{
+	otherID, err := conv.OtherUserID(client.UserID)
+	if err != nil {
+		h.logger.Warn("failed to get other participant",
+			zap.String("conversation_id", incoming.ConversationID),
+			zap.String("user_id", client.UserID),
+			zap.Error(err))
+		return
+	}
+	h.hub.BroadcastJSON(otherID, ws.ReadReceiptEvent{
 		Type:              "read_receipt",
 		ConversationID:    incoming.ConversationID,
 		LastReadMessageID: lastID,
@@ -239,7 +304,14 @@ func (h *WSHandler) handleChatMessage(ctx context.Context, client *ws.Client, in
 		return
 	}
 
-	otherUserID := conv.OtherUserID(client.UserID)
+	otherUserID, err := conv.OtherUserID(client.UserID)
+	if err != nil {
+		h.logger.Warn("failed to get other participant",
+			zap.String("conversation_id", msg.ConversationID),
+			zap.String("user_id", client.UserID),
+			zap.Error(err))
+		return
+	}
 	h.hub.BroadcastTo(otherUserID, outgoing)
 
 	// If the recipient is online, mark as delivered immediately

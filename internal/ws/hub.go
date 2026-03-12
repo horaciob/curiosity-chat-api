@@ -13,12 +13,20 @@ const (
 	MessageTypeAuth = "auth"
 	// AuthDeadline is the time the server waits for the auth frame before closing.
 	AuthDeadline = 10 * time.Second
+
+	// Hub channel buffer sizes
+	registerChanBufferSize   = 64
+	unregisterChanBufferSize = 64
+	broadcastChanBufferSize  = 256
+
+	// ClientSendChanBufferSize is the buffer size for client send channels
+	ClientSendChanBufferSize = 256
 )
 
 // IncomingMessage is the JSON structure sent by a WebSocket client.
 type IncomingMessage struct {
-	Type           string `json:"type"`                       // "auth" | "text" | "poi_share" | "typing" | "read"
-	Token          string `json:"token,omitempty"`             // only for type="auth"
+	Type           string `json:"type"`            // "auth" | "text" | "poi_share" | "typing" | "read"
+	Token          string `json:"token,omitempty"` // only for type="auth"
 	ConversationID string `json:"conversation_id,omitempty"`
 	Content        string `json:"content,omitempty"`
 	POIID          string `json:"poi_id,omitempty"`
@@ -86,9 +94,9 @@ type Hub struct {
 func NewHub() *Hub {
 	return &Hub{
 		clients:    make(map[string]map[*Client]bool),
-		register:   make(chan *Client, 64),
-		unregister: make(chan *Client, 64),
-		broadcast:  make(chan broadcastEnvelope, 256),
+		register:   make(chan *Client, registerChanBufferSize),
+		unregister: make(chan *Client, unregisterChanBufferSize),
+		broadcast:  make(chan broadcastEnvelope, broadcastChanBufferSize),
 	}
 }
 
@@ -159,7 +167,10 @@ func (h *Hub) BroadcastJSON(userID string, v any) {
 func (h *Hub) IsOnline(userID string) bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	return len(h.clients[userID]) > 0
+	if conns, ok := h.clients[userID]; ok {
+		return len(conns) > 0
+	}
+	return false
 }
 
 // WritePump pumps messages from the hub to the WebSocket connection.

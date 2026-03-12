@@ -3,7 +3,6 @@ package conversation
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/domain/entity"
 	domerrors "github.com/horaciobranciforte/curiosity-chat-api/internal/domain/errors"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/pkg/apperror"
@@ -21,11 +20,8 @@ func NewGetConversation(repo Repository) *GetConversation {
 
 // Execute returns the conversation with the given ID if requesterID is a participant.
 func (uc *GetConversation) Execute(ctx context.Context, conversationID, requesterID string) (*entity.Conversation, error) {
-	if conversationID == "" {
-		return nil, apperror.Validation("conversation ID is required", domerrors.ErrInvalidConversationID)
-	}
-	if _, err := uuid.Parse(conversationID); err != nil {
-		return nil, apperror.Validation("invalid conversation ID format", domerrors.ErrInvalidConversationID)
+	if err := apperror.ValidateUUID(conversationID, "conversation ID", domerrors.ErrInvalidConversationID); err != nil {
+		return nil, err
 	}
 	if requesterID == "" {
 		return nil, apperror.Validation("requester ID is required", domerrors.ErrInvalidUserID)

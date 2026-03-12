@@ -4,9 +4,39 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/google/jsonapi"
 )
+
+// MaxRequestBodySize is the maximum allowed size for request bodies (1MB)
+const MaxRequestBodySize = 1024 * 1024
+
+// PaginationParams holds parsed pagination parameters
+type PaginationParams struct {
+	Limit  int
+	Offset int
+}
+
+// ParsePagination parses pagination parameters from URL query values.
+// Returns normalized limit and offset values.
+func ParsePagination(q url.Values, defaultLimit, maxLimit int) PaginationParams {
+	limit, _ := strconv.Atoi(q.Get("page[limit]"))
+	offset, _ := strconv.Atoi(q.Get("page[offset]"))
+
+	if limit <= 0 {
+		limit = defaultLimit
+	}
+	if limit > maxLimit {
+		limit = maxLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	return PaginationParams{Limit: limit, Offset: offset}
+}
 
 // Success writes a 200 JSON:API response with a single resource.
 func Success(w http.ResponseWriter, model interface{}) {

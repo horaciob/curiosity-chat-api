@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/middleware"
@@ -56,8 +55,14 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 	conversationID := chi.URLParam(r, "id")
 	senderID := middleware.UserIDFromContext(r.Context())
 
+	r.Body = http.MaxBytesReader(w, r.Body, response.MaxRequestBodySize)
+	defer r.Body.Close()
 	var req sendMessageRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err.Error() == "http: request body too large" {
+			response.Error(w, http.StatusRequestEntityTooLarge, "Request Entity Too Large", "request body exceeds 1MB limit")
+			return
+		}
 		response.Error(w, http.StatusBadRequest, "Bad Request", "invalid request body")
 		return
 	}
@@ -95,19 +100,14 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 func (h *MessageHandler) List(w http.ResponseWriter, r *http.Request) {
 	conversationID := chi.URLParam(r, "id")
 	requesterID := middleware.UserIDFromContext(r.Context())
-	q := r.URL.Query()
-	limit, _ := strconv.Atoi(q.Get("page[limit]"))
-	offset, _ := strconv.Atoi(q.Get("page[offset]"))
-	if limit == 0 {
-		limit = 50
-	}
+	pagination := response.ParsePagination(r.URL.Query(), message.DefaultMessageLimit, message.MaxMessageLimit)
 
-	msgs, total, err := h.getMessagesUC.Execute(r.Context(), conversationID, requesterID, limit, offset)
+	msgs, total, err := h.getMessagesUC.Execute(r.Context(), conversationID, requesterID, pagination.Limit, pagination.Offset)
 	if err != nil {
 		handleUseCaseError(w, err)
 		return
 	}
 
 	baseURL := "/api/v1/conversations/" + conversationID + "/messages"
-	response.Collection(w, response.NewMessageListResponse(msgs), total, limit, offset, baseURL)
+	response.Collection(w, response.NewMessageListResponse(msgs), total, pagination.Limit, pagination.Offset, baseURL)
 }

@@ -3,10 +3,16 @@ package message
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/domain/entity"
 	domerrors "github.com/horaciobranciforte/curiosity-chat-api/internal/domain/errors"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/pkg/apperror"
+)
+
+const (
+	// DefaultMessageLimit is the default number of messages to return
+	DefaultMessageLimit = 50
+	// MaxMessageLimit is the maximum allowed limit for pagination
+	MaxMessageLimit = 100
 )
 
 // GetMessages retrieves paginated messages for a conversation.
@@ -22,21 +28,18 @@ func NewGetMessages(repo Repository, convRepo ConversationRepository) *GetMessag
 
 // Execute returns messages for a conversation, newest first. Verifies requester is a participant.
 func (uc *GetMessages) Execute(ctx context.Context, conversationID, requesterID string, limit, offset int) ([]*entity.Message, int, error) {
-	if conversationID == "" {
-		return nil, 0, apperror.Validation("conversation ID is required", domerrors.ErrInvalidConversationID)
-	}
-	if _, err := uuid.Parse(conversationID); err != nil {
-		return nil, 0, apperror.Validation("invalid conversation ID format", domerrors.ErrInvalidConversationID)
+	if err := apperror.ValidateUUID(conversationID, "conversation ID", domerrors.ErrInvalidConversationID); err != nil {
+		return nil, 0, err
 	}
 	if requesterID == "" {
 		return nil, 0, apperror.Validation("requester ID is required", domerrors.ErrInvalidUserID)
 	}
 
 	if limit <= 0 {
-		limit = 50
+		limit = DefaultMessageLimit
 	}
-	if limit > 100 {
-		limit = 100
+	if limit > MaxMessageLimit {
+		limit = MaxMessageLimit
 	}
 
 	conv, err := uc.convRepo.GetByID(ctx, conversationID)

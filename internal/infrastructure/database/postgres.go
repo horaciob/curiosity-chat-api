@@ -1,6 +1,8 @@
 package database
 
 import (
+	"time"
+
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
@@ -13,5 +15,6 @@ func NewPostgresDB(dsn string) (*sqlx.DB, error) {
 	}
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(time.Hour)
 	return db, nil
 }

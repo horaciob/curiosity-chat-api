@@ -19,6 +19,7 @@ func NewRouter(
 	wsHandler *handler.WSHandler,
 	tokenValidator custommiddleware.TokenValidator,
 	internalAPIKey string,
+	allowedOrigins []string,
 ) *chi.Mux {
 	r := chi.NewRouter()
 
@@ -27,7 +28,7 @@ func NewRouter(
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins: []string{"*"},
+		AllowedOrigins: allowedOrigins,
 		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
 		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type", "X-Internal-Key"},
 	}))

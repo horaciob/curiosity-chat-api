@@ -183,6 +183,51 @@ Calling `POST /api/v1/conversations` twice with the same pair always returns the
 
 ---
 
+## Limits & Constraints
+
+### Message Content Limits
+
+| Field | Max Length | Description |
+|-------|-----------|-------------|
+| `content` (text messages) | **1000 characters** | Text message content |
+| `content` (POI title) | **500 characters** | POI share title |
+| `poi_id` | UUID format | Must be valid UUID |
+| `share_intent` | Enum | `must_go`, `come_with_me`, `invite`, `invite_me` |
+
+### Pagination Limits
+
+| Endpoint | Default Limit | Max Limit |
+|----------|--------------|-----------|
+| `GET /conversations` | 20 | 100 |
+| `GET /conversations/{id}/messages` | 50 | 100 |
+
+### Request Body Limits
+
+- **Max request body size**: 1MB for all POST endpoints
+- Negative pagination values are normalized to defaults
+
+### CORS Configuration
+
+Allowed origins are configurable via the `ALLOWED_ORIGINS` environment variable (comma-separated).
+Default for development:
+- `http://localhost:3000`
+- `http://localhost:8080`
+- `https://localhost:3000`
+- `https://localhost:8080`
+
+**Note**: Wildcard (`*`) origins are **not** allowed in production.
+
+### WebSocket Constraints
+
+- **Auth timeout**: 10 seconds to send first auth frame
+- **Buffer sizes**: 
+  - Read: 1024 bytes
+  - Write: 1024 bytes
+  - Client send channel: 256 messages
+- **DB operation timeout**: 10 seconds per message operation
+
+---
+
 ## API endpoints
 
 All data endpoints use [JSON:API](https://jsonapi.org/) format. WebSocket and health use plain JSON.
@@ -295,3 +340,58 @@ make test
 ```
 
 Unit tests use hand-written mocks (`test/mocks/`) and do not require a database connection.
+
+---
+
+## Recent Changes & Improvements
+
+### Security Fixes
+
+- **CORS**: Removed wildcard (`*`) origin allowlist. Now requires explicit `ALLOWED_ORIGINS` configuration
+- **WebSocket CheckOrigin**: Implemented strict origin validation for WebSocket connections
+- **Request Body Limits**: Added 1MB max body size limit to prevent DoS attacks
+
+### Validation Improvements
+
+- **Message Content**: Limited to 1000 characters maximum
+- **POI Titles**: Limited to 500 characters maximum  
+- **ShareIntent**: Now validates against allowed enum values (`must_go`, `come_with_me`, `invite`, `invite_me`)
+- **UUID Validation**: Consolidated all UUID validations into `apperror.ValidateUUID()` helper
+
+### Architecture Refactoring
+
+- **Removed unused dependency**: `CreateConversation` no longer receives unused `followChecker` parameter
+- **Fixed null pointer**: `Hub.IsOnline()` now safely handles nil map entries
+- **Context management**: Fixed context leak in WebSocket read loop (defer cancel() → explicit cancel())
+- **Extracted constants**: All magic numbers moved to named constants (buffer sizes, timeouts, pagination limits)
+- **Extracted pagination logic**: Created `response.ParsePagination()` helper to eliminate duplication
+
+### WebSocket Fixes
+
+- **Error handling**: Replaced all `//nolint:errcheck` with proper error handling and logging
+- **Context timeout**: WebSocket DB operations now use 10-second timeout
+- **Connection safety**: Added `defer r.Body.Close()` in HTTP handlers
+- **OtherUserID**: Fixed potential bug where non-participants could get wrong user ID (now returns error)
+
+### Code Quality
+
+- **Constants**: Added `DefaultConversationLimit`, `MaxConversationLimit`, `DefaultMessageLimit`, `MaxMessageLimit`
+- **WebSocket constants**: `wsReadBufferSize`, `wsWriteBufferSize`, channel buffer sizes
+- **Pagination constants**: Consolidated limit validation across handlers
+- **Request body handling**: Added `defer r.Body.Close()` and size limits
+
+### Testing
+
+- Added 19+ new tests covering:
+  - Message content length limits (max, over-limit, under-limit)
+  - ShareIntent validation (valid and invalid values)
+  - POI title length limits
+  - Pagination parameter parsing
+  - UUID validation helper
+  - Hub online status with edge cases
+  - OtherUserID error cases
+
+### Configuration
+
+- **New env var**: `ALLOWED_ORIGINS` - Comma-separated list of allowed CORS origins
+- **Database**: Added connection max lifetime (1 hour) to prevent stale connections
