@@ -75,6 +75,22 @@ make db-setup      # docker compose up + migrate
 make install-tools # install migrate + swag CLIs
 ```
 
+## Go Version & Documentation
+
+**Go 1.25** — Context7 library ID: `/golang/go/go1.25.4`
+
+Key features available:
+- **Generics**: type parameters, constraints, partial inference
+- **Range over integers**: `for i := range 10 { ... }`
+- **Range over iterators** (Go 1.22+): `for v := range slices.Values(s) { ... }`
+- **Built-ins**: `min()`, `max()`, `clear()`
+- **Standard packages**: `slices`, `maps`, `cmp` (Go 1.21+)
+- **Structured logging**: `log/slog` (Go 1.21+)
+- **HTTP routing with method+path** (Go 1.22+): `http.HandleFunc("GET /path", ...)`
+- **context**: `context.WithCancelCause`, `context.Cause` (Go 1.20+)
+
+To fetch updated Go docs: use Context7 MCP → `query-docs` with library ID `/golang/go/go1.25.4`.
+
 ## Skills Available
 
 - `/golang-pro` — Go concurrency, interfaces, generics, testing patterns
