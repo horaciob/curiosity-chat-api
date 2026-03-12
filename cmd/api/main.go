@@ -74,7 +74,7 @@ func main() {
 	listConversationsUC := conversation.NewListConversations(convRepo)
 
 	// Use cases — message
-	sendMessageUC := message.NewSendMessage(msgRepo, convRepo)
+	sendMessageUC := message.NewSendMessage(msgRepo, convRepo, followChecker)
 	getMessagesUC := message.NewGetMessages(msgRepo, convRepo)
 
 	// Auth client — delegates token validation to curiosity-user-api

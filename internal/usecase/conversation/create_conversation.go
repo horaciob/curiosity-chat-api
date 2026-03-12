@@ -38,14 +38,6 @@ func (uc *CreateConversation) Execute(ctx context.Context, requesterID, targetID
 		return nil, apperror.Validation("cannot start a conversation with yourself", domerrors.ErrSelfConversation)
 	}
 
-	canChat, err := uc.followChecker.AreFollowing(ctx, requesterID, targetID)
-	if err != nil {
-		return nil, apperror.Internal("failed to check follow relationship", err)
-	}
-	if !canChat {
-		return nil, apperror.Forbidden("users must follow each other to chat", domerrors.ErrUsersCannotChat)
-	}
-
 	existing, err := uc.repo.GetByParticipants(ctx, requesterID, targetID)
 	if err != nil && !apperror.IsNotFound(err) {
 		return nil, apperror.Internal("failed to check existing conversation", err)

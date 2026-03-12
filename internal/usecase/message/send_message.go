@@ -19,16 +19,19 @@ type SendMessageInput struct {
 
 // SendMessage sends a message to an existing conversation.
 type SendMessage struct {
-	repo     Repository
-	convRepo ConversationRepository
+	repo          Repository
+	convRepo      ConversationRepository
+	followChecker FollowChecker
 }
 
 // NewSendMessage creates a new SendMessage use case.
-func NewSendMessage(repo Repository, convRepo ConversationRepository) *SendMessage {
-	return &SendMessage{repo: repo, convRepo: convRepo}
+func NewSendMessage(repo Repository, convRepo ConversationRepository, followChecker FollowChecker) *SendMessage {
+	return &SendMessage{repo: repo, convRepo: convRepo, followChecker: followChecker}
 }
 
 // Execute creates and persists a message, updating the conversation's last_message_at.
+// Non-mutual-follow users can exchange only one message each; after that they must be
+// friends (mutual follow) to continue the conversation.
 func (uc *SendMessage) Execute(ctx context.Context, conversationID, senderID string, in SendMessageInput) (*entity.Message, error) {
 	if conversationID == "" {
 		return nil, apperror.Validation("conversation ID is required", domerrors.ErrInvalidConversationID)
@@ -50,6 +53,24 @@ func (uc *SendMessage) Execute(ctx context.Context, conversationID, senderID str
 
 	if !conv.HasParticipant(senderID) {
 		return nil, apperror.Forbidden("access denied", domerrors.ErrNotParticipant)
+	}
+
+	// Enforce the stranger message limit: non-mutual-follow users may only send
+	// one message each (two total). Once the conversation has 2+ messages, both
+	// participants must be mutual follows to continue.
+	otherID := conv.OtherUserID(senderID)
+	mutual, err := uc.followChecker.AreFollowing(ctx, senderID, otherID)
+	if err != nil {
+		return nil, apperror.Internal("failed to check follow relationship", err)
+	}
+	if !mutual {
+		count, err := uc.repo.CountByConversation(ctx, conversationID)
+		if err != nil {
+			return nil, apperror.Internal("failed to count messages", err)
+		}
+		if count >= 2 {
+			return nil, apperror.Forbidden("become friends to continue this conversation", domerrors.ErrUsersCannotChat)
+		}
 	}
 
 	var msg *entity.Message

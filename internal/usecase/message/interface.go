@@ -24,3 +24,8 @@ type ConversationRepository interface {
 	GetByID(ctx context.Context, id string) (*entity.Conversation, error)
 	UpdateLastMessageAt(ctx context.Context, id string, t time.Time) error
 }
+
+// FollowChecker verifies whether two users are mutual follows.
+type FollowChecker interface {
+	AreFollowing(ctx context.Context, userA, userB string) (bool, error)
+}
