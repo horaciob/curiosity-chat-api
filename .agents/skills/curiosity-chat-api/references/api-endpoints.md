@@ -1,7 +1,7 @@
 # API Endpoints Reference
 
 Base URL: `http://localhost:8081`
-Format: JSON:API for data endpoints, plain JSON for health/ws.
+Format: JSON:API for all REST endpoints, plain JSON for WebSocket messages.
 Auth: `Authorization: Bearer <jwt>` — token issued by curiosity-api (shared JWT_SECRET).
 
 ---
@@ -12,7 +12,15 @@ Auth: `Authorization: Bearer <jwt>` — token issued by curiosity-api (shared JW
 
 ```
 Response 200:
-{ "status": "ok" }
+{
+  "data": {
+    "id": "status",
+    "type": "health",
+    "attributes": {
+      "status": "ok"
+    }
+  }
+}
 ```
 
 ---
@@ -185,10 +193,24 @@ Upgrade to WebSocket. Auth via first application frame (token never in URL).
 
 ## Error Response Format
 
+All error responses follow the JSON:API specification with an `errors` array:
+
 ```json
 {
-  "error": "Not Found",
-  "message": "conversation not found",
-  "code": 404
+  "errors": [
+    {
+      "status": "404",
+      "title": "Not Found",
+      "detail": "conversation not found"
+    }
+  ]
 }
 ```
+
+Common error statuses:
+- **400** — Bad Request (validation error)
+- **401** — Unauthorized (missing/invalid token)
+- **403** — Forbidden (not a participant or users don't follow each other)
+- **404** — Not Found (resource doesn't exist)
+- **409** — Conflict (business rule violation)
+- **500** — Internal Server Error

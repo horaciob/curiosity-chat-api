@@ -27,6 +27,13 @@ func TestCreateConversation_Success(t *testing.T) {}
 ### IDs
 Always `uuid.New().String()`. Never hardcode UUIDs in tests.
 
+### Swagger Documentation
+**ALWAYS** update swag (Swagger) comments when changing endpoints. After modifying handler code, run `make docs` to regenerate the OpenAPI spec.
+
+- Keep `@Summary`, `@Description`, `@Tags`, `@Param`, and `@Success` annotations accurate
+- Response types must match actual DTOs used in handlers
+- Run `make docs` after any endpoint change to keep `/swagger/` UI in sync
+
 ## Architecture
 
 Clean Architecture — dependencies flow inward only:

@@ -37,18 +37,18 @@ type sendMessageRequest struct {
 // Send handles POST /api/v1/conversations/{id}/messages.
 //
 //	@Summary		Send a message
-//	@Description	Sends a text message or POI share to the conversation. The authenticated user must be a participant.
+//	@Description	Sends a text message or POI share to the conversation. The authenticated user must be a participant. Returns JSON:API compliant response.
 //	@Tags			messages
 //	@Accept			json
 //	@Produce		json
-//	@Param			id		path		string				true	"Conversation ID"
-//	@Param			body	body		sendMessageRequest	true	"Message payload"
-//	@Success		201		{object}	object				"Message created"
-//	@Failure		400		{object}	object				"Bad request"
-//	@Failure		401		{object}	object				"Unauthorized"
-//	@Failure		403		{object}	object				"Forbidden — not a participant"
-//	@Failure		404		{object}	object				"Conversation not found"
-//	@Failure		500		{object}	object				"Internal server error"
+//	@Param			id		path		string					true	"Conversation ID"
+//	@Param			body	body		sendMessageRequest		true	"Message payload"
+//	@Success		201		{object}	MessageResponse		"Message created"
+//	@Failure		400		{object}	JSONAPIErrorsResponse	"Bad request"
+//	@Failure		401		{object}	JSONAPIErrorsResponse	"Unauthorized"
+//	@Failure		403		{object}	JSONAPIErrorsResponse	"Forbidden — not a participant"
+//	@Failure		404		{object}	JSONAPIErrorsResponse	"Conversation not found"
+//	@Failure		500		{object}	JSONAPIErrorsResponse	"Internal server error"
 //	@Security		BearerAuth
 //	@Router			/conversations/{id}/messages [post]
 func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
@@ -84,17 +84,17 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 // List handles GET /api/v1/conversations/{id}/messages.
 //
 //	@Summary		List messages
-//	@Description	Returns paginated message history for a conversation, ordered newest first. The authenticated user must be a participant.
+//	@Description	Returns paginated message history for a conversation, ordered newest first. The authenticated user must be a participant. Returns JSON:API compliant response with meta and links for pagination.
 //	@Tags			messages
 //	@Produce		json
 //	@Param			id				path		string	true	"Conversation ID"
 //	@Param			page[limit]		query		int		false	"Max results (default 50)"
 //	@Param			page[offset]	query		int		false	"Offset for pagination"
-//	@Success		200				{object}	object	"Paginated list of messages"
-//	@Failure		401				{object}	object	"Unauthorized"
-//	@Failure		403				{object}	object	"Forbidden — not a participant"
-//	@Failure		404				{object}	object	"Conversation not found"
-//	@Failure		500				{object}	object	"Internal server error"
+//	@Success		200				{object}	MessageListResponse	"Paginated list of messages"
+//	@Failure		401				{object}	JSONAPIErrorsResponse	"Unauthorized"
+//	@Failure		403				{object}	JSONAPIErrorsResponse	"Forbidden — not a participant"
+//	@Failure		404				{object}	JSONAPIErrorsResponse	"Conversation not found"
+//	@Failure		500				{object}	JSONAPIErrorsResponse	"Internal server error"
 //	@Security		BearerAuth
 //	@Router			/conversations/{id}/messages [get]
 func (h *MessageHandler) List(w http.ResponseWriter, r *http.Request) {

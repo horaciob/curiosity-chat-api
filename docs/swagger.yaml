@@ -1,5 +1,202 @@
 basePath: /api/v1
 definitions:
+  internal_adapter_http_handler.ConversationAttributes:
+    properties:
+      created_at:
+        example: "2025-01-15T10:30:00Z"
+        type: string
+      last_message_at:
+        example: "2025-01-15T14:20:00Z"
+        type: string
+      user1_id:
+        example: 550e8400-e29b-41d4-a716-446655440001
+        type: string
+      user2_id:
+        example: 550e8400-e29b-41d4-a716-446655440002
+        type: string
+    type: object
+  internal_adapter_http_handler.ConversationListResponse:
+    properties:
+      data:
+        items:
+          properties:
+            attributes:
+              $ref: '#/definitions/internal_adapter_http_handler.ConversationAttributes'
+            id:
+              example: 550e8400-e29b-41d4-a716-446655440000
+              type: string
+            links:
+              $ref: '#/definitions/internal_adapter_http_handler.JSONAPILinks'
+            type:
+              example: conversations
+              type: string
+          type: object
+        type: array
+      links:
+        properties:
+          first:
+            example: /api/v1/conversations?page[limit]=20&page[offset]=0
+            type: string
+          next:
+            example: /api/v1/conversations?page[limit]=20&page[offset]=20
+            type: string
+          prev:
+            example: /api/v1/conversations?page[limit]=20&page[offset]=0
+            type: string
+          self:
+            example: /api/v1/conversations?page[limit]=20&page[offset]=0
+            type: string
+        type: object
+      meta:
+        $ref: '#/definitions/internal_adapter_http_handler.JSONAPIMeta'
+    type: object
+  internal_adapter_http_handler.ConversationResponse:
+    properties:
+      data:
+        properties:
+          attributes:
+            $ref: '#/definitions/internal_adapter_http_handler.ConversationAttributes'
+          id:
+            example: 550e8400-e29b-41d4-a716-446655440000
+            type: string
+          links:
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPILinks'
+          type:
+            example: conversations
+            type: string
+        type: object
+    type: object
+  internal_adapter_http_handler.HealthJSONAPIResponse:
+    properties:
+      data:
+        properties:
+          attributes:
+            properties:
+              status:
+                example: ok
+                type: string
+            type: object
+          id:
+            example: 550e8400-e29b-41d4-a716-446655440000
+            type: string
+          type:
+            example: conversations
+            type: string
+        type: object
+    type: object
+  internal_adapter_http_handler.JSONAPIError:
+    properties:
+      detail:
+        example: conversation not found
+        type: string
+      status:
+        example: "404"
+        type: string
+      title:
+        example: Not Found
+        type: string
+    type: object
+  internal_adapter_http_handler.JSONAPIErrorsResponse:
+    properties:
+      errors:
+        items:
+          $ref: '#/definitions/internal_adapter_http_handler.JSONAPIError'
+        type: array
+    type: object
+  internal_adapter_http_handler.JSONAPILinks:
+    properties:
+      self:
+        example: /api/v1/conversations/550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  internal_adapter_http_handler.JSONAPIMeta:
+    properties:
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      total:
+        example: 42
+        type: integer
+    type: object
+  internal_adapter_http_handler.MessageAttributes:
+    properties:
+      content:
+        example: Hello! How are you?
+        type: string
+      conversation_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      created_at:
+        example: "2025-01-15T14:20:00Z"
+        type: string
+      poi_id:
+        example: 550e8400-e29b-41d4-a716-446655440003
+        type: string
+      sender_id:
+        example: 550e8400-e29b-41d4-a716-446655440001
+        type: string
+      share_intent:
+        example: visit
+        type: string
+      status:
+        example: sent
+        type: string
+      type:
+        example: text
+        type: string
+    type: object
+  internal_adapter_http_handler.MessageListResponse:
+    properties:
+      data:
+        items:
+          properties:
+            attributes:
+              $ref: '#/definitions/internal_adapter_http_handler.MessageAttributes'
+            id:
+              example: 550e8400-e29b-41d4-a716-446655440000
+              type: string
+            links:
+              $ref: '#/definitions/internal_adapter_http_handler.JSONAPILinks'
+            type:
+              example: conversations
+              type: string
+          type: object
+        type: array
+      links:
+        properties:
+          first:
+            example: /api/v1/conversations/550e8400-e29b-41d4-a716-446655440000/messages?page[limit]=50&page[offset]=0
+            type: string
+          next:
+            type: string
+          prev:
+            type: string
+          self:
+            example: /api/v1/conversations/550e8400-e29b-41d4-a716-446655440000/messages?page[limit]=50&page[offset]=0
+            type: string
+        type: object
+      meta:
+        $ref: '#/definitions/internal_adapter_http_handler.JSONAPIMeta'
+    type: object
+  internal_adapter_http_handler.MessageResponse:
+    properties:
+      data:
+        properties:
+          attributes:
+            $ref: '#/definitions/internal_adapter_http_handler.MessageAttributes'
+          id:
+            example: 550e8400-e29b-41d4-a716-446655440000
+            type: string
+          links:
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPILinks'
+          type:
+            example: conversations
+            type: string
+        type: object
+    type: object
   internal_adapter_http_handler.createConversationRequest:
     properties:
       target_user_id:
@@ -27,7 +224,8 @@ paths:
   /conversations:
     get:
       description: Returns a paginated list of conversations for the authenticated
-        user, ordered by most recent activity.
+        user, ordered by most recent activity. Returns JSON:API compliant response
+        with meta and links for pagination.
       parameters:
       - description: Max results (default 20)
         in: query
@@ -43,15 +241,15 @@ paths:
         "200":
           description: Paginated list of conversations
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.ConversationListResponse'
         "401":
           description: Unauthorized
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "500":
           description: Internal server error
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
       security:
       - BearerAuth: []
       summary: List conversations
@@ -62,7 +260,7 @@ paths:
       - application/json
       description: Starts a new conversation between the authenticated user and the
         target user. If a conversation already exists it is returned. Both users must
-        mutually follow each other.
+        mutually follow each other. Returns JSON:API compliant response.
       parameters:
       - description: Target user
         in: body
@@ -76,27 +274,27 @@ paths:
         "200":
           description: Conversation already exists
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.ConversationResponse'
         "201":
           description: Conversation created
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.ConversationResponse'
         "400":
           description: Bad request
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "401":
           description: Unauthorized
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "403":
           description: Users do not mutually follow each other
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "500":
           description: Internal server error
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
       security:
       - BearerAuth: []
       summary: Create or get a conversation
@@ -105,7 +303,7 @@ paths:
   /conversations/{id}:
     get:
       description: Returns a conversation by ID. The authenticated user must be a
-        participant.
+        participant. Returns JSON:API compliant response.
       parameters:
       - description: Conversation ID
         in: path
@@ -118,23 +316,23 @@ paths:
         "200":
           description: Conversation
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.ConversationResponse'
         "401":
           description: Unauthorized
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "403":
           description: Forbidden — not a participant
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "404":
           description: Not found
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "500":
           description: Internal server error
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
       security:
       - BearerAuth: []
       summary: Get a conversation
@@ -143,7 +341,8 @@ paths:
   /conversations/{id}/messages:
     get:
       description: Returns paginated message history for a conversation, ordered newest
-        first. The authenticated user must be a participant.
+        first. The authenticated user must be a participant. Returns JSON:API compliant
+        response with meta and links for pagination.
       parameters:
       - description: Conversation ID
         in: path
@@ -164,23 +363,23 @@ paths:
         "200":
           description: Paginated list of messages
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.MessageListResponse'
         "401":
           description: Unauthorized
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "403":
           description: Forbidden — not a participant
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "404":
           description: Conversation not found
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "500":
           description: Internal server error
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
       security:
       - BearerAuth: []
       summary: List messages
@@ -190,7 +389,7 @@ paths:
       consumes:
       - application/json
       description: Sends a text message or POI share to the conversation. The authenticated
-        user must be a participant.
+        user must be a participant. Returns JSON:API compliant response.
       parameters:
       - description: Conversation ID
         in: path
@@ -209,27 +408,27 @@ paths:
         "201":
           description: Message created
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.MessageResponse'
         "400":
           description: Bad request
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "401":
           description: Unauthorized
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "403":
           description: Forbidden — not a participant
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "404":
           description: Conversation not found
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
         "500":
           description: Internal server error
           schema:
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse'
       security:
       - BearerAuth: []
       summary: Send a message
@@ -237,16 +436,14 @@ paths:
       - messages
   /health:
     get:
-      description: Returns the service status
+      description: Returns the service status in JSON:API format
       produces:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Service status
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_adapter_http_handler.HealthJSONAPIResponse'
       summary: Health check
       tags:
       - health
