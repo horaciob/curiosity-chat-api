@@ -523,3 +523,21 @@ func TestSendMessagePOIShareTitleTooLong(t *testing.T) {
 	assert.True(t, apperror.IsValidation(err))
 	assert.Contains(t, err.Error(), "poi title exceeds maximum length")
 }
+
+func TestSendMessageInternalError(t *testing.T) {
+	msgRepo := new(mocks.MessageRepositoryMock)
+	convRepo := new(mocks.ConversationRepositoryMock)
+	followChecker := new(mocks.FollowCheckerMock)
+	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+
+	ctx := context.Background()
+	convID := uuid.New().String()
+
+	convRepo.On("GetByID", ctx, convID).Return(nil, errors.New("database error"))
+
+	_, err := uc.Execute(ctx, convID, uuid.New().String(), SendMessageInput{Type: "text", Content: "hi"})
+
+	require.Error(t, err)
+	assert.True(t, apperror.IsType(err, apperror.TypeInternal))
+	assert.Contains(t, err.Error(), "failed to get conversation")
+}

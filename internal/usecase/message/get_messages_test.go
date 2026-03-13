@@ -200,3 +200,21 @@ func TestGetMessagesCountFails(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to count messages")
 }
+
+func TestGetMessagesInternalError(t *testing.T) {
+	msgRepo := new(mocks.MessageRepositoryMock)
+	convRepo := new(mocks.ConversationRepositoryMock)
+	uc := NewGetMessages(msgRepo, convRepo)
+
+	ctx := context.Background()
+	convID := uuid.New().String()
+	requesterID := uuid.New().String()
+
+	convRepo.On("GetByID", ctx, convID).Return(nil, errors.New("database error"))
+
+	_, _, err := uc.Execute(ctx, convID, requesterID, 50, 0)
+
+	require.Error(t, err)
+	assert.True(t, apperror.IsType(err, apperror.TypeInternal))
+	assert.Contains(t, err.Error(), "failed to get conversation")
+}
