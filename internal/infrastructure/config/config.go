@@ -24,7 +24,7 @@ func Load() *Config {
 		InternalAPIKey: mustEnv("INTERNAL_API_KEY"),
 		UserAPIURL:     getEnv("USER_API_URL", "http://localhost:8084"),
 		LogLevel:       getEnv("LOG_LEVEL", "info"),
-		LogFormat:      getEnv("LOG_FORMAT", "console"),
+		LogFormat:      getEnv("LOG_FORMAT", "text"),
 		AllowedOrigins: getAllowedOrigins(),
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/config"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/database"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/followclient"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/logger"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/conversation"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/message"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/ws"
@@ -43,16 +44,18 @@ func main() {
 
 	cfg := config.Load()
 
-	logger, err := buildLogger(cfg.LogFormat, cfg.LogLevel)
-	if err != nil {
-		panic("failed to build logger: " + err.Error())
+	if err := logger.Init(logger.Config{
+		Level:  cfg.LogLevel,
+		Format: cfg.LogFormat,
+	}); err != nil {
+		panic("failed to initialize logger: " + err.Error())
 	}
-	defer logger.Sync() //nolint:errcheck
+	defer logger.Sync()
 
 	// Database
 	db, err := database.NewPostgresDB(cfg.DSN)
 	if err != nil {
-		logger.Fatal("failed to connect to database", zap.Error(err))
+		logger.Log.Fatal("failed to connect to database", zap.Error(err))
 	}
 	defer db.Close()
 
@@ -88,7 +91,7 @@ func main() {
 	healthHandler := handler.NewHealthHandler()
 	conversationHandler := handler.NewConversationHandler(createConversationUC, getConversationUC, listConversationsUC)
 	messageHandler := handler.NewMessageHandler(sendMessageUC, getMessagesUC)
-	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, msgRepo, authClient, logger)
+	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, msgRepo, authClient, logger.Log)
 
 	// Router
 	r := router.NewRouter(healthHandler, conversationHandler, messageHandler, wsHandler, authClient, cfg.InternalAPIKey, cfg.AllowedOrigins)
@@ -124,26 +127,4 @@ func main() {
 	}
 
 	logger.Info("server stopped")
-}
-
-func buildLogger(format, level string) (*zap.Logger, error) {
-	var cfg zap.Config
-	if format == "json" {
-		cfg = zap.NewProductionConfig()
-	} else {
-		cfg = zap.NewDevelopmentConfig()
-	}
-
-	switch level {
-	case "debug":
-		cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-	case "warn":
-		cfg.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
-	case "error":
-		cfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-	default:
-		cfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-	}
-
-	return cfg.Build()
 }
