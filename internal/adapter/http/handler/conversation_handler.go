@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -53,15 +52,8 @@ type createConversationRequest struct {
 func (h *ConversationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	requesterID := middleware.UserIDFromContext(r.Context())
 
-	r.Body = http.MaxBytesReader(w, r.Body, response.MaxRequestBodySize)
-	defer r.Body.Close()
 	var req createConversationRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if err.Error() == "http: request body too large" {
-			response.Error(w, http.StatusRequestEntityTooLarge, "Request Entity Too Large", "request body exceeds 1MB limit")
-			return
-		}
-		response.Error(w, http.StatusBadRequest, "Bad Request", "invalid request body")
+	if !decodeRequestBody(w, r, &req) {
 		return
 	}
 
