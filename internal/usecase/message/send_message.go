@@ -5,7 +5,9 @@ import (
 
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/domain/entity"
 	domerrors "github.com/horaciobranciforte/curiosity-chat-api/internal/domain/errors"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/logger"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/pkg/apperror"
+	"go.uber.org/zap"
 )
 
 // SendMessageInput carries the parameters for sending a message.
@@ -25,59 +27,71 @@ const (
 
 // SendMessage sends a message to an existing conversation.
 type SendMessage struct {
-	repo          Repository
-	convRepo      ConversationRepository
-	followChecker FollowChecker
+	repo     Repository
+	convRepo ConversationRepository
 }
 
 // NewSendMessage creates a new SendMessage use case.
-func NewSendMessage(repo Repository, convRepo ConversationRepository, followChecker FollowChecker) *SendMessage {
-	return &SendMessage{repo: repo, convRepo: convRepo, followChecker: followChecker}
+func NewSendMessage(repo Repository, convRepo ConversationRepository) *SendMessage {
+	return &SendMessage{repo: repo, convRepo: convRepo}
 }
 
 // Execute creates and persists a message, updating the conversation's last_message_at.
-// Non-mutual-follow users can exchange only one message each; after that they must be
-// friends (mutual follow) to continue the conversation.
+// All participants can send unlimited messages without any mutual follow requirement.
 func (uc *SendMessage) Execute(ctx context.Context, conversationID, senderID string, in SendMessageInput) (*entity.Message, error) {
+	logger.Info("[SEND_MESSAGE] Entering use case",
+		zap.String("conversation_id", conversationID),
+		zap.String("sender_id", senderID),
+		zap.String("message_type", in.Type),
+	)
+
 	if err := apperror.ValidateUUID(conversationID, "conversation ID", domerrors.ErrInvalidConversationID); err != nil {
+		logger.Error("[SEND_MESSAGE] Invalid conversation ID",
+			zap.String("conversation_id", conversationID),
+			zap.Error(err),
+		)
 		return nil, err
 	}
 	if senderID == "" {
+		logger.Error("[SEND_MESSAGE] Sender ID is empty")
 		return nil, apperror.Validation("sender ID is required", domerrors.ErrInvalidUserID)
 	}
 
 	conv, err := uc.convRepo.GetByID(ctx, conversationID)
 	if err != nil {
 		if apperror.IsNotFound(err) {
+			logger.Warn("[SEND_MESSAGE] Conversation not found",
+				zap.String("conversation_id", conversationID),
+			)
 			return nil, err
 		}
+		logger.Error("[SEND_MESSAGE] Failed to get conversation",
+			zap.String("conversation_id", conversationID),
+			zap.Error(err),
+		)
 		return nil, apperror.Internal("failed to get conversation", err)
 	}
 
+	logger.Info("[SEND_MESSAGE] Conversation retrieved",
+		zap.String("conversation_id", conversationID),
+		zap.String("user1_id", conv.User1ID),
+		zap.String("user2_id", conv.User2ID),
+	)
+
 	if !conv.HasParticipant(senderID) {
-		return nil, apperror.Forbidden("access denied", domerrors.ErrNotParticipant)
+		logger.Error("[SEND_MESSAGE] 403 Forbidden - User is not a participant",
+			zap.String("conversation_id", conversationID),
+			zap.String("sender_id", senderID),
+			zap.String("user1_id", conv.User1ID),
+			zap.String("user2_id", conv.User2ID),
+		)
+		return nil, apperror.Forbidden("you are not a participant in this conversation", domerrors.ErrNotParticipant)
 	}
 
-	// Enforce the stranger message limit: non-mutual-follow users may only send
-	// one message each (two total). Once the conversation has 2+ messages, both
-	// participants must be mutual follows to continue.
-	otherID, err := conv.OtherUserID(senderID)
-	if err != nil {
-		return nil, apperror.Internal("failed to get other participant", err)
-	}
-	mutual, err := uc.followChecker.AreFollowing(ctx, senderID, otherID)
-	if err != nil {
-		return nil, apperror.Internal("failed to check follow relationship", err)
-	}
-	if !mutual {
-		count, err := uc.repo.CountByConversation(ctx, conversationID)
-		if err != nil {
-			return nil, apperror.Internal("failed to count messages", err)
-		}
-		if count >= 2 {
-			return nil, apperror.Forbidden("become friends to continue this conversation", domerrors.ErrUsersCannotChat)
-		}
-	}
+	logger.Info("[SEND_MESSAGE] Participant check passed - unlimited messaging enabled",
+		zap.String("conversation_id", conversationID),
+		zap.String("sender_id", senderID),
+	)
 
 	var msg *entity.Message
 	switch in.Type {
@@ -113,12 +127,28 @@ func (uc *SendMessage) Execute(ctx context.Context, conversationID, senderID str
 	}
 
 	if err := uc.repo.Create(ctx, msg); err != nil {
+		logger.Error("[SEND_MESSAGE] Failed to save message",
+			zap.String("conversation_id", conversationID),
+			zap.String("sender_id", senderID),
+			zap.Error(err),
+		)
 		return nil, apperror.Internal("failed to save message", err)
 	}
 
 	if err := uc.convRepo.UpdateLastMessageAt(ctx, conversationID, msg.CreatedAt); err != nil {
+		logger.Error("[SEND_MESSAGE] Failed to update conversation",
+			zap.String("conversation_id", conversationID),
+			zap.Error(err),
+		)
 		return nil, apperror.Internal("failed to update conversation", err)
 	}
+
+	logger.Info("[SEND_MESSAGE] Message sent successfully",
+		zap.String("conversation_id", conversationID),
+		zap.String("sender_id", senderID),
+		zap.String("message_id", msg.ID),
+		zap.String("message_type", msg.Type),
+	)
 
 	return msg, nil
 }

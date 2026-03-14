@@ -6,7 +6,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/middleware"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/response"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/logger"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/message"
+	"go.uber.org/zap"
 )
 
 // MessageHandler handles message endpoints.
@@ -54,10 +56,27 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 	conversationID := chi.URLParam(r, "id")
 	senderID := middleware.UserIDFromContext(r.Context())
 
+	logger.Info("[HANDLER] Send message endpoint called",
+		zap.String("conversation_id", conversationID),
+		zap.String("sender_id", senderID),
+		zap.String("method", r.Method),
+		zap.String("path", r.URL.Path),
+	)
+
 	var req sendMessageRequest
 	if !decodeRequestBody(w, r, &req) {
+		logger.Error("[HANDLER] Failed to decode request body",
+			zap.String("conversation_id", conversationID),
+			zap.String("sender_id", senderID),
+		)
 		return
 	}
+
+	logger.Info("[HANDLER] Request body decoded",
+		zap.String("conversation_id", conversationID),
+		zap.String("sender_id", senderID),
+		zap.String("message_type", req.Type),
+	)
 
 	msg, err := h.sendMessageUC.Execute(r.Context(), conversationID, senderID, message.SendMessageInput{
 		Type:        req.Type,
@@ -66,9 +85,20 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 		ShareIntent: req.ShareIntent,
 	})
 	if err != nil {
+		logger.Error("[HANDLER] SendMessage use case failed",
+			zap.String("conversation_id", conversationID),
+			zap.String("sender_id", senderID),
+			zap.Error(err),
+		)
 		handleUseCaseError(w, err)
 		return
 	}
+
+	logger.Info("[HANDLER] Message sent successfully",
+		zap.String("conversation_id", conversationID),
+		zap.String("sender_id", senderID),
+		zap.String("message_id", msg.ID),
+	)
 
 	response.Created(w, response.NewMessageResponse(msg))
 }

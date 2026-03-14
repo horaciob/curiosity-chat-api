@@ -21,15 +21,13 @@ func makeConv(userA, userB string) *entity.Conversation {
 func TestSendMessageTextSuccess(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 	msgRepo.On("Create", ctx, mock.AnythingOfType("*entity.Message")).Return(nil)
 	convRepo.On("UpdateLastMessageAt", ctx, conv.ID, mock.Anything).Return(nil)
 
@@ -41,14 +39,12 @@ func TestSendMessageTextSuccess(t *testing.T) {
 	assert.Equal(t, "hello", *msg.Content)
 	msgRepo.AssertExpectations(t)
 	convRepo.AssertExpectations(t)
-	followChecker.AssertExpectations(t)
 }
 
 func TestSendMessagePOIShareSuccess(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
@@ -56,7 +52,6 @@ func TestSendMessagePOIShareSuccess(t *testing.T) {
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 	msgRepo.On("Create", ctx, mock.AnythingOfType("*entity.Message")).Return(nil)
 	convRepo.On("UpdateLastMessageAt", ctx, conv.ID, mock.Anything).Return(nil)
 
@@ -68,7 +63,7 @@ func TestSendMessagePOIShareSuccess(t *testing.T) {
 }
 
 func TestSendMessageEmptyConversationID(t *testing.T) {
-	uc := NewSendMessage(new(mocks.MessageRepositoryMock), new(mocks.ConversationRepositoryMock), new(mocks.FollowCheckerMock))
+	uc := NewSendMessage(new(mocks.MessageRepositoryMock), new(mocks.ConversationRepositoryMock))
 
 	_, err := uc.Execute(context.Background(), "", uuid.New().String(), SendMessageInput{Type: "text", Content: "hi"})
 
@@ -78,7 +73,7 @@ func TestSendMessageEmptyConversationID(t *testing.T) {
 }
 
 func TestSendMessageInvalidConversationID(t *testing.T) {
-	uc := NewSendMessage(new(mocks.MessageRepositoryMock), new(mocks.ConversationRepositoryMock), new(mocks.FollowCheckerMock))
+	uc := NewSendMessage(new(mocks.MessageRepositoryMock), new(mocks.ConversationRepositoryMock))
 
 	_, err := uc.Execute(context.Background(), "bad-id", uuid.New().String(), SendMessageInput{Type: "text", Content: "hi"})
 
@@ -88,7 +83,7 @@ func TestSendMessageInvalidConversationID(t *testing.T) {
 }
 
 func TestSendMessageEmptySenderID(t *testing.T) {
-	uc := NewSendMessage(new(mocks.MessageRepositoryMock), new(mocks.ConversationRepositoryMock), new(mocks.FollowCheckerMock))
+	uc := NewSendMessage(new(mocks.MessageRepositoryMock), new(mocks.ConversationRepositoryMock))
 
 	_, err := uc.Execute(context.Background(), uuid.New().String(), "", SendMessageInput{Type: "text", Content: "hi"})
 
@@ -100,8 +95,7 @@ func TestSendMessageEmptySenderID(t *testing.T) {
 func TestSendMessageConversationNotFound(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	convID := uuid.New().String()
@@ -117,8 +111,7 @@ func TestSendMessageConversationNotFound(t *testing.T) {
 func TestSendMessageNotParticipant(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	conv := makeConv(uuid.New().String(), uuid.New().String())
@@ -135,15 +128,13 @@ func TestSendMessageNotParticipant(t *testing.T) {
 func TestSendMessageEmptyContent(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 
 	_, err := uc.Execute(ctx, conv.ID, senderID, SendMessageInput{Type: "text", Content: ""})
 
@@ -155,15 +146,13 @@ func TestSendMessageEmptyContent(t *testing.T) {
 func TestSendMessagePOIShareMissingPOIID(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 
 	_, err := uc.Execute(ctx, conv.ID, senderID, SendMessageInput{Type: "poi_share", POIID: ""})
 
@@ -175,15 +164,13 @@ func TestSendMessagePOIShareMissingPOIID(t *testing.T) {
 func TestSendMessagePOIShareInvalidPOIID(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 
 	_, err := uc.Execute(ctx, conv.ID, senderID, SendMessageInput{Type: "poi_share", POIID: "not-a-uuid"})
 
@@ -195,15 +182,13 @@ func TestSendMessagePOIShareInvalidPOIID(t *testing.T) {
 func TestSendMessageInvalidType(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 
 	_, err := uc.Execute(ctx, conv.ID, senderID, SendMessageInput{Type: "video"})
 
@@ -215,15 +200,13 @@ func TestSendMessageInvalidType(t *testing.T) {
 func TestSendMessageSaveFails(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 	msgRepo.On("Create", ctx, mock.AnythingOfType("*entity.Message")).Return(errors.New("db error"))
 
 	_, err := uc.Execute(ctx, conv.ID, senderID, SendMessageInput{Type: "text", Content: "hi"})
@@ -235,15 +218,13 @@ func TestSendMessageSaveFails(t *testing.T) {
 func TestSendMessageUpdateLastMessageAtFails(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 	msgRepo.On("Create", ctx, mock.AnythingOfType("*entity.Message")).Return(nil)
 	convRepo.On("UpdateLastMessageAt", ctx, conv.ID, mock.Anything).Return(errors.New("db error"))
 
@@ -253,100 +234,16 @@ func TestSendMessageUpdateLastMessageAtFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to update conversation")
 }
 
-func TestSendMessageStrangerLimitAllowed(t *testing.T) {
-	msgRepo := new(mocks.MessageRepositoryMock)
-	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
-
-	ctx := context.Background()
-	senderID := uuid.New().String()
-	conv := makeConv(senderID, uuid.New().String())
-
-	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(false, nil)
-	msgRepo.On("CountByConversation", ctx, conv.ID).Return(1, nil)
-	msgRepo.On("Create", ctx, mock.AnythingOfType("*entity.Message")).Return(nil)
-	convRepo.On("UpdateLastMessageAt", ctx, conv.ID, mock.Anything).Return(nil)
-
-	msg, err := uc.Execute(ctx, conv.ID, senderID, SendMessageInput{Type: "text", Content: "hello"})
-
-	require.NoError(t, err)
-	assert.Equal(t, "text", msg.Type)
-}
-
-func TestSendMessageStrangerLimitExceeded(t *testing.T) {
-	msgRepo := new(mocks.MessageRepositoryMock)
-	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
-
-	ctx := context.Background()
-	senderID := uuid.New().String()
-	conv := makeConv(senderID, uuid.New().String())
-
-	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(false, nil)
-	msgRepo.On("CountByConversation", ctx, conv.ID).Return(2, nil)
-
-	_, err := uc.Execute(ctx, conv.ID, senderID, SendMessageInput{Type: "text", Content: "hello"})
-
-	require.Error(t, err)
-	assert.True(t, apperror.IsForbidden(err))
-	assert.Contains(t, err.Error(), "become friends")
-}
-
-func TestSendMessageFollowCheckFails(t *testing.T) {
-	msgRepo := new(mocks.MessageRepositoryMock)
-	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
-
-	ctx := context.Background()
-	senderID := uuid.New().String()
-	conv := makeConv(senderID, uuid.New().String())
-
-	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(false, errors.New("service down"))
-
-	_, err := uc.Execute(ctx, conv.ID, senderID, SendMessageInput{Type: "text", Content: "hello"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to check follow relationship")
-}
-
-func TestSendMessageCountFails(t *testing.T) {
-	msgRepo := new(mocks.MessageRepositoryMock)
-	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
-
-	ctx := context.Background()
-	senderID := uuid.New().String()
-	conv := makeConv(senderID, uuid.New().String())
-
-	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(false, nil)
-	msgRepo.On("CountByConversation", ctx, conv.ID).Return(0, errors.New("db error"))
-
-	_, err := uc.Execute(ctx, conv.ID, senderID, SendMessageInput{Type: "text", Content: "hello"})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to count messages")
-}
-
 func TestSendMessageContentTooLong(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 
 	longContent := make([]byte, MaxMessageContentLength+1)
 	for i := range longContent {
@@ -363,15 +260,13 @@ func TestSendMessageContentTooLong(t *testing.T) {
 func TestSendMessageContentMaxLength(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 	msgRepo.On("Create", ctx, mock.AnythingOfType("*entity.Message")).Return(nil)
 	convRepo.On("UpdateLastMessageAt", ctx, conv.ID, mock.Anything).Return(nil)
 
@@ -390,15 +285,13 @@ func TestSendMessageContentMaxLength(t *testing.T) {
 func TestSendMessageContentOneOverMaxLength(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 
 	// Create content that is exactly 1 character over the limit (1001 chars)
 	overLimitContent := make([]byte, MaxMessageContentLength+1)
@@ -416,15 +309,13 @@ func TestSendMessageContentOneOverMaxLength(t *testing.T) {
 func TestSendMessageContentOneUnderMaxLength(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
 	conv := makeConv(senderID, uuid.New().String())
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 	msgRepo.On("Create", ctx, mock.AnythingOfType("*entity.Message")).Return(nil)
 	convRepo.On("UpdateLastMessageAt", ctx, conv.ID, mock.Anything).Return(nil)
 
@@ -444,8 +335,7 @@ func TestSendMessageContentOneUnderMaxLength(t *testing.T) {
 func TestSendMessagePOIShareInvalidShareIntent(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
@@ -453,7 +343,6 @@ func TestSendMessagePOIShareInvalidShareIntent(t *testing.T) {
 	poiID := uuid.New().String()
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 
 	_, err := uc.Execute(ctx, conv.ID, senderID, SendMessageInput{Type: "poi_share", POIID: poiID, ShareIntent: "invalid_intent"})
 
@@ -469,8 +358,7 @@ func TestSendMessagePOIShareValidShareIntents(t *testing.T) {
 		t.Run(intent, func(t *testing.T) {
 			msgRepo := new(mocks.MessageRepositoryMock)
 			convRepo := new(mocks.ConversationRepositoryMock)
-			followChecker := new(mocks.FollowCheckerMock)
-			uc := NewSendMessage(msgRepo, convRepo, followChecker)
+			uc := NewSendMessage(msgRepo, convRepo)
 
 			ctx := context.Background()
 			senderID := uuid.New().String()
@@ -478,7 +366,6 @@ func TestSendMessagePOIShareValidShareIntents(t *testing.T) {
 			poiID := uuid.New().String()
 
 			convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-			followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 			msgRepo.On("Create", ctx, mock.AnythingOfType("*entity.Message")).Return(nil)
 			convRepo.On("UpdateLastMessageAt", ctx, conv.ID, mock.Anything).Return(nil)
 
@@ -501,8 +388,7 @@ func TestSendMessagePOIShareValidShareIntents(t *testing.T) {
 func TestSendMessagePOIShareTitleTooLong(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	senderID := uuid.New().String()
@@ -510,7 +396,6 @@ func TestSendMessagePOIShareTitleTooLong(t *testing.T) {
 	poiID := uuid.New().String()
 
 	convRepo.On("GetByID", ctx, conv.ID).Return(conv, nil)
-	followChecker.On("AreFollowing", ctx, senderID, mock.Anything).Return(true, nil)
 
 	longTitle := make([]byte, MaxPOITitleLength+1)
 	for i := range longTitle {
@@ -527,8 +412,7 @@ func TestSendMessagePOIShareTitleTooLong(t *testing.T) {
 func TestSendMessageInternalError(t *testing.T) {
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
-	followChecker := new(mocks.FollowCheckerMock)
-	uc := NewSendMessage(msgRepo, convRepo, followChecker)
+	uc := NewSendMessage(msgRepo, convRepo)
 
 	ctx := context.Background()
 	convID := uuid.New().String()

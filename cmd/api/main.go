@@ -19,7 +19,6 @@ import (
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/authclient"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/config"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/database"
-	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/followclient"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/logger"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/conversation"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/message"
@@ -63,21 +62,13 @@ func main() {
 	convRepo := postgresrepo.NewConversationRepository(db)
 	msgRepo := postgresrepo.NewMessageRepository(db)
 
-	// Follow checker
-	var followChecker conversation.FollowChecker
-	if cfg.UserAPIURL == "" {
-		followChecker = followclient.NoopFollowChecker{}
-	} else {
-		followChecker = followclient.NewClient(cfg.UserAPIURL, cfg.InternalAPIKey)
-	}
-
 	// Use cases — conversation
 	createConversationUC := conversation.NewCreateConversation(convRepo)
 	getConversationUC := conversation.NewGetConversation(convRepo)
 	listConversationsUC := conversation.NewListConversations(convRepo)
 
 	// Use cases — message
-	sendMessageUC := message.NewSendMessage(msgRepo, convRepo, followChecker)
+	sendMessageUC := message.NewSendMessage(msgRepo, convRepo)
 	getMessagesUC := message.NewGetMessages(msgRepo, convRepo)
 
 	// Auth client — delegates token validation to curiosity-user-api

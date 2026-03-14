@@ -10,6 +10,8 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/handler"
 	custommiddleware "github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/middleware"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/logger"
+	"go.uber.org/zap"
 )
 
 func NewRouter(
@@ -27,6 +29,24 @@ func NewRouter(
 	r.Use(chimiddleware.RealIP)
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
+
+	// CORS middleware with logging
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if r.Method == http.MethodOptions {
+				logger.Info("[CORS] Preflight request received",
+					zap.String("origin", origin),
+					zap.String("method", r.Method),
+					zap.String("path", r.URL.Path),
+					zap.String("access_control_request_method", r.Header.Get("Access-Control-Request-Method")),
+					zap.String("access_control_request_headers", r.Header.Get("Access-Control-Request-Headers")),
+				)
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: allowedOrigins,
 		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
