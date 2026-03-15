@@ -177,6 +177,13 @@ func (h *WSHandler) readPump(client *ws.Client) {
 		client.Conn.Close()
 	}()
 
+	// Keep the connection alive: reset read deadline on every pong received.
+	client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second)) //nolint:errcheck
+	client.Conn.SetPongHandler(func(string) error {
+		client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second)) //nolint:errcheck
+		return nil
+	})
+
 	for {
 		_, data, err := client.Conn.ReadMessage()
 		if err != nil {
@@ -288,6 +295,7 @@ func (h *WSHandler) handleChatMessage(ctx context.Context, client *ws.Client, in
 		SenderID:       msg.SenderID,
 		Content:        msg.Content,
 		POIID:          msg.POIID,
+		ShareIntent:    msg.ShareIntent,
 		Status:         msg.Status,
 		CreatedAt:      msg.CreatedAt,
 	}

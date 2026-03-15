@@ -21,6 +21,11 @@ const (
 
 	// ClientSendChanBufferSize is the buffer size for client send channels
 	ClientSendChanBufferSize = 256
+
+	// writeWait is the time allowed to write a message to the peer.
+	writeWait = 10 * time.Second
+	// pingPeriod is how often to send a ping frame to keep the connection alive.
+	pingPeriod = 30 * time.Second
 )
 
 // IncomingMessage is the JSON structure sent by a WebSocket client.
@@ -41,6 +46,7 @@ type OutgoingMessage struct {
 	SenderID       string    `json:"sender_id"`
 	Content        *string   `json:"content,omitempty"`
 	POIID          *string   `json:"poi_id,omitempty"`
+	ShareIntent    *string   `json:"share_intent,omitempty"`
 	Status         string    `json:"status"`
 	CreatedAt      time.Time `json:"created_at"`
 }
@@ -174,11 +180,30 @@ func (h *Hub) IsOnline(userID string) bool {
 }
 
 // WritePump pumps messages from the hub to the WebSocket connection.
+// It also sends periodic ping frames to keep the connection alive through
+// NAT timeouts and load balancer idle limits.
 func (c *Client) WritePump() {
-	defer c.Conn.Close()
-	for msg := range c.Send {
-		if err := c.Conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-			return
+	ticker := time.NewTicker(pingPeriod)
+	defer func() {
+		ticker.Stop()
+		c.Conn.Close()
+	}()
+	for {
+		select {
+		case msg, ok := <-c.Send:
+			c.Conn.SetWriteDeadline(time.Now().Add(writeWait)) //nolint:errcheck
+			if !ok {
+				c.Conn.WriteMessage(websocket.CloseMessage, []byte{}) //nolint:errcheck
+				return
+			}
+			if err := c.Conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+				return
+			}
+		case <-ticker.C:
+			c.Conn.SetWriteDeadline(time.Now().Add(writeWait)) //nolint:errcheck
+			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
 		}
 	}
 }

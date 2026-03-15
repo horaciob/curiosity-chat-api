@@ -14,6 +14,7 @@ import (
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/domain/entity"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/pkg/apperror"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/message"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/ws"
 	"github.com/horaciobranciforte/curiosity-chat-api/test/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -23,9 +24,11 @@ func setupMessageHandler() (*MessageHandler, *mocks.MessageRepositoryMock, *mock
 	msgRepo := new(mocks.MessageRepositoryMock)
 	convRepo := new(mocks.ConversationRepositoryMock)
 	followChecker := new(mocks.FollowCheckerMock)
-	sendUC := message.NewSendMessage(msgRepo, convRepo, followChecker)
+	sendUC := message.NewSendMessage(msgRepo, convRepo)
 	getUC := message.NewGetMessages(msgRepo, convRepo)
-	return NewMessageHandler(sendUC, getUC), msgRepo, convRepo, followChecker
+	hub := ws.NewHub()
+	go hub.Run()
+	return NewMessageHandler(sendUC, getUC, hub, convRepo, msgRepo), msgRepo, convRepo, followChecker
 }
 
 func TestMessageHandlerSendTextSuccess(t *testing.T) {

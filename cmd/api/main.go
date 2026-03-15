@@ -81,7 +81,7 @@ func main() {
 	// Handlers
 	healthHandler := handler.NewHealthHandler()
 	conversationHandler := handler.NewConversationHandler(createConversationUC, getConversationUC, listConversationsUC)
-	messageHandler := handler.NewMessageHandler(sendMessageUC, getMessagesUC)
+	messageHandler := handler.NewMessageHandler(sendMessageUC, getMessagesUC, hub, convRepo, msgRepo)
 	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, msgRepo, authClient, logger.Log)
 
 	// Router

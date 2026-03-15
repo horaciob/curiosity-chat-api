@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -8,6 +9,7 @@ import (
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/response"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/logger"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/message"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/ws"
 	"go.uber.org/zap"
 )
 
@@ -15,16 +17,25 @@ import (
 type MessageHandler struct {
 	sendMessageUC *message.SendMessage
 	getMessagesUC *message.GetMessages
+	hub           *ws.Hub
+	convRepo      message.ConversationRepository
+	msgRepo       message.Repository
 }
 
 // NewMessageHandler creates a new MessageHandler.
 func NewMessageHandler(
 	sendMessageUC *message.SendMessage,
 	getMessagesUC *message.GetMessages,
+	hub *ws.Hub,
+	convRepo message.ConversationRepository,
+	msgRepo message.Repository,
 ) *MessageHandler {
 	return &MessageHandler{
 		sendMessageUC: sendMessageUC,
 		getMessagesUC: getMessagesUC,
+		hub:           hub,
+		convRepo:      convRepo,
+		msgRepo:       msgRepo,
 	}
 }
 
@@ -101,6 +112,64 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 	)
 
 	response.Created(w, response.NewMessageResponse(msg))
+
+	// Broadcast the new message via WebSocket to both participants.
+	// Use a background context — the request context is cancelled once the response is written.
+	broadcastCtx, cancelBroadcast := context.WithTimeout(context.Background(), wsOperationTimeout)
+	defer cancelBroadcast()
+
+	outgoing := ws.OutgoingMessage{
+		ID:             msg.ID,
+		Type:           msg.Type,
+		ConversationID: msg.ConversationID,
+		SenderID:       msg.SenderID,
+		Content:        msg.Content,
+		POIID:          msg.POIID,
+		ShareIntent:    msg.ShareIntent,
+		Status:         msg.Status,
+		CreatedAt:      msg.CreatedAt,
+	}
+
+	// Echo to sender for multi-device support
+	h.hub.BroadcastTo(senderID, outgoing)
+
+	// Resolve recipient
+	conv, convErr := h.convRepo.GetByID(broadcastCtx, msg.ConversationID)
+	if convErr != nil {
+		logger.Warn("[HANDLER] Failed to resolve conversation for WS broadcast",
+			zap.String("conversation_id", msg.ConversationID),
+			zap.Error(convErr),
+		)
+		return
+	}
+	otherUserID, otherErr := conv.OtherUserID(senderID)
+	if otherErr != nil {
+		logger.Warn("[HANDLER] Failed to get other participant for WS broadcast",
+			zap.String("conversation_id", msg.ConversationID),
+			zap.String("sender_id", senderID),
+			zap.Error(otherErr),
+		)
+		return
+	}
+
+	// Push new message to recipient — this is what makes their screen refresh
+	h.hub.BroadcastTo(otherUserID, outgoing)
+	logger.Info("[HANDLER] WS broadcast sent to recipient",
+		zap.String("conversation_id", msg.ConversationID),
+		zap.String("recipient_id", otherUserID),
+		zap.String("message_id", msg.ID),
+	)
+
+	// Immediate delivery confirmation if recipient is online
+	if h.hub.IsOnline(otherUserID) {
+		if updateErr := h.msgRepo.UpdateStatus(broadcastCtx, msg.ID, "delivered"); updateErr == nil {
+			h.hub.BroadcastJSON(senderID, ws.DeliveredEvent{
+				Type:           "delivered",
+				ConversationID: msg.ConversationID,
+				MessageID:      msg.ID,
+			})
+		}
+	}
 }
 
 // List handles GET /api/v1/conversations/{id}/messages.
