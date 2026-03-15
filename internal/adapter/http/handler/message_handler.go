@@ -170,6 +170,20 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
+
+	// Broadcast unread count update to recipient
+	unreadCtx, cancelUnread := context.WithTimeout(context.Background(), wsOperationTimeout)
+	defer cancelUnread()
+	convUnread, convUnreadErr := h.msgRepo.CountUnreadByConversationForUser(unreadCtx, msg.ConversationID, otherUserID)
+	if convUnreadErr == nil {
+		totalUnread, _ := h.msgRepo.CountTotalUnreadForUser(unreadCtx, otherUserID)
+		h.hub.BroadcastJSON(otherUserID, ws.UnreadCountEvent{
+			Type:           "unread_count_update",
+			ConversationID: msg.ConversationID,
+			UnreadCount:    convUnread,
+			TotalUnread:    totalUnread,
+		})
+	}
 }
 
 // List handles GET /api/v1/conversations/{id}/messages.

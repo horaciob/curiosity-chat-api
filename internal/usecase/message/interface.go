@@ -17,6 +17,10 @@ type Repository interface {
 	// MarkConversationRead marks all unread messages from other participants as read.
 	// Returns the ID of the most recently read message, or empty string if nothing changed.
 	MarkConversationRead(ctx context.Context, conversationID, readerID string) (string, error)
+	// CountUnreadByConversationForUser returns how many unread messages the user has in a conversation.
+	CountUnreadByConversationForUser(ctx context.Context, conversationID, userID string) (int, error)
+	// CountTotalUnreadForUser returns the total unread message count across all conversations for the user.
+	CountTotalUnreadForUser(ctx context.Context, userID string) (int, error)
 }
 
 // ConversationRepository provides read/update access to conversations from message use cases.

@@ -39,3 +39,13 @@ func (m *MessageRepositoryMock) MarkConversationRead(ctx context.Context, conver
 	args := m.Called(ctx, conversationID, readerID)
 	return args.String(0), args.Error(1)
 }
+
+func (m *MessageRepositoryMock) CountUnreadByConversationForUser(ctx context.Context, conversationID, userID string) (int, error) {
+	args := m.Called(ctx, conversationID, userID)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MessageRepositoryMock) CountTotalUnreadForUser(ctx context.Context, userID string) (int, error) {
+	args := m.Called(ctx, userID)
+	return args.Int(0), args.Error(1)
+}

@@ -19,6 +19,7 @@ func NewRouter(
 	conversationHandler *handler.ConversationHandler,
 	messageHandler *handler.MessageHandler,
 	wsHandler *handler.WSHandler,
+	internalHandler *handler.InternalHandler,
 	tokenValidator custommiddleware.TokenValidator,
 	internalAPIKey string,
 	allowedOrigins []string,
@@ -65,6 +66,12 @@ func NewRouter(
 
 		// WebSocket — auth via first frame (no middleware needed)
 		r.Get("/ws", wsHandler.ServeWS)
+
+		// Internal service-to-service routes
+		r.Group(func(r chi.Router) {
+			r.Use(custommiddleware.InternalAuthenticate(internalAPIKey))
+			r.Post("/internal/push", internalHandler.Push)
+		})
 
 		// Protected routes
 		r.Group(func(r chi.Router) {

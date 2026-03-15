@@ -74,6 +74,32 @@ type ReadReceiptEvent struct {
 	ReaderID          string `json:"reader_id"`
 }
 
+// UnreadCountEvent is broadcast to a user when their unread message count changes.
+type UnreadCountEvent struct {
+	Type           string `json:"type"` // "unread_count_update"
+	ConversationID string `json:"conversation_id"`
+	UnreadCount    int    `json:"unread_count"` // unread in this conversation
+	TotalUnread    int    `json:"total_unread"` // across all conversations
+}
+
+// NotificationPushEvent relays an app notification from user-api to a connected user.
+type NotificationPushEvent struct {
+	Type             string `json:"type"` // "notification"
+	NotificationID   string `json:"notification_id"`
+	NotificationType string `json:"notification_type"`
+	ActorID          string `json:"actor_id,omitempty"`
+	ActorName        string `json:"actor_name,omitempty"`
+	Title            string `json:"title"`
+	Body             string `json:"body"`
+	CreatedAt        string `json:"created_at"`
+}
+
+// NotificationCountEvent is broadcast when the user's notification badge count changes.
+type NotificationCountEvent struct {
+	Type        string `json:"type"` // "notification_count_update"
+	UnreadCount int    `json:"unread_count"`
+}
+
 type broadcastEnvelope struct {
 	targetUserID string
 	payload      []byte
@@ -166,6 +192,11 @@ func (h *Hub) BroadcastJSON(userID string, v any) {
 	if err != nil {
 		return
 	}
+	h.broadcast <- broadcastEnvelope{targetUserID: userID, payload: data}
+}
+
+// BroadcastRaw sends a pre-serialized JSON payload to all connections of the given user.
+func (h *Hub) BroadcastRaw(userID string, data []byte) {
 	h.broadcast <- broadcastEnvelope{targetUserID: userID, payload: data}
 }
 

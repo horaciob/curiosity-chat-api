@@ -41,6 +41,8 @@ func TestMessageHandlerSendTextSuccess(t *testing.T) {
 	followChecker.On("AreFollowing", mock.Anything, senderID, mock.Anything).Return(true, nil)
 	msgRepo.On("Create", mock.Anything, mock.AnythingOfType("*entity.Message")).Return(nil)
 	convRepo.On("UpdateLastMessageAt", mock.Anything, conv.ID, mock.Anything).Return(nil)
+	msgRepo.On("CountUnreadByConversationForUser", mock.Anything, conv.ID, mock.Anything).Return(1, nil)
+	msgRepo.On("CountTotalUnreadForUser", mock.Anything, mock.Anything).Return(1, nil)
 
 	body := map[string]string{"type": "text", "content": "Hello!"}
 	jsonBody, _ := json.Marshal(body)
@@ -70,6 +72,8 @@ func TestMessageHandlerSendPOIShareSuccess(t *testing.T) {
 	followChecker.On("AreFollowing", mock.Anything, senderID, mock.Anything).Return(true, nil)
 	msgRepo.On("Create", mock.Anything, mock.AnythingOfType("*entity.Message")).Return(nil)
 	convRepo.On("UpdateLastMessageAt", mock.Anything, conv.ID, mock.Anything).Return(nil)
+	msgRepo.On("CountUnreadByConversationForUser", mock.Anything, conv.ID, mock.Anything).Return(1, nil)
+	msgRepo.On("CountTotalUnreadForUser", mock.Anything, mock.Anything).Return(1, nil)
 
 	body := map[string]string{"type": "poi_share", "poi_id": poiID}
 	jsonBody, _ := json.Marshal(body)

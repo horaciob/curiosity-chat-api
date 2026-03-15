@@ -83,9 +83,10 @@ func main() {
 	conversationHandler := handler.NewConversationHandler(createConversationUC, getConversationUC, listConversationsUC)
 	messageHandler := handler.NewMessageHandler(sendMessageUC, getMessagesUC, hub, convRepo, msgRepo)
 	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, msgRepo, authClient, logger.Log)
+	internalHandler := handler.NewInternalHandler(hub)
 
 	// Router
-	r := router.NewRouter(healthHandler, conversationHandler, messageHandler, wsHandler, authClient, cfg.InternalAPIKey, cfg.AllowedOrigins)
+	r := router.NewRouter(healthHandler, conversationHandler, messageHandler, wsHandler, internalHandler, authClient, cfg.InternalAPIKey, cfg.AllowedOrigins)
 
 	// HTTP server
 	srv := &http.Server{

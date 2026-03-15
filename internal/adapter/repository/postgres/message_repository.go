@@ -103,3 +103,26 @@ func (r *MessageRepository) CountByConversation(ctx context.Context, conversatio
 	}
 	return count, nil
 }
+
+func (r *MessageRepository) CountUnreadByConversationForUser(ctx context.Context, conversationID, userID string) (int, error) {
+	q := `SELECT COUNT(*) FROM messages
+	      WHERE conversation_id = $1 AND sender_id != $2 AND status != 'read'`
+	var count int
+	if err := r.db.GetContext(ctx, &count, q, conversationID, userID); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *MessageRepository) CountTotalUnreadForUser(ctx context.Context, userID string) (int, error) {
+	q := `SELECT COUNT(*) FROM messages m
+	      JOIN conversations c ON m.conversation_id = c.id
+	      WHERE (c.user1_id = $1 OR c.user2_id = $1)
+	        AND m.sender_id != $1
+	        AND m.status != 'read'`
+	var count int
+	if err := r.db.GetContext(ctx, &count, q, userID); err != nil {
+		return 0, err
+	}
+	return count, nil
+}

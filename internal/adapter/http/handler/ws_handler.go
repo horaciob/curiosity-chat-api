@@ -273,6 +273,15 @@ func (h *WSHandler) handleRead(ctx context.Context, client *ws.Client, incoming 
 		LastReadMessageID: lastID,
 		ReaderID:          client.UserID,
 	})
+
+	// Broadcast updated unread counts back to the reader (their count for this conversation is now 0)
+	totalUnread, _ := h.msgRepo.CountTotalUnreadForUser(ctx, client.UserID)
+	h.hub.BroadcastJSON(client.UserID, ws.UnreadCountEvent{
+		Type:           "unread_count_update",
+		ConversationID: incoming.ConversationID,
+		UnreadCount:    0,
+		TotalUnread:    totalUnread,
+	})
 }
 
 func (h *WSHandler) handleChatMessage(ctx context.Context, client *ws.Client, incoming ws.IncomingMessage) {
