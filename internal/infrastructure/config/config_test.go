@@ -31,7 +31,7 @@ func TestLoadWithDefaults(t *testing.T) {
 	assert.Equal(t, "test-key", cfg.InternalAPIKey)
 	assert.Equal(t, "http://localhost:8084", cfg.UserAPIURL)
 	assert.Equal(t, "info", cfg.LogLevel)
-	assert.Equal(t, "console", cfg.LogFormat)
+	assert.Equal(t, "text", cfg.LogFormat)
 	assert.NotEmpty(t, cfg.DSN)
 	assert.Contains(t, cfg.DSN, "host=localhost")
 	assert.Contains(t, cfg.DSN, "port=5434")
