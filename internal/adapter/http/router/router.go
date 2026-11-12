@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/requestid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"os"
@@ -28,6 +29,7 @@ func NewRouter(
 	r := chi.NewRouter()
 
 	r.Use(chimiddleware.RequestID)
+	r.Use(requestid.Echo)
 	r.Use(chimiddleware.RealIP)
 	r.Use(custommiddleware.Metrics)
 	// Compression wraps the response writer, which a WebSocket upgrade cannot go through.

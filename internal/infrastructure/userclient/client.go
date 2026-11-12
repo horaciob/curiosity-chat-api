@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/requestid"
 	"net/http"
 	"net/url"
 	"strings"
@@ -24,7 +25,7 @@ func NewClient(baseURL, internalKey string) *Client {
 	return &Client{
 		baseURL:     strings.TrimRight(baseURL, "/"),
 		internalKey: internalKey,
-		httpClient:  &http.Client{Timeout: 5 * time.Second},
+		httpClient:  requestid.NewClient(5 * time.Second),
 	}
 }
 
