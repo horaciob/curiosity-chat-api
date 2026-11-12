@@ -7,6 +7,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Every Load needs the JWT secret; tests that are about something else get one here.
+func init() {
+	os.Setenv("JWT_SECRET", "test-secret")
+}
+
+func TestLoadPanicsWithoutJWTSecret(t *testing.T) {
+	t.Setenv("INTERNAL_API_KEY", "k")
+	t.Setenv("JWT_SECRET", "")
+	os.Unsetenv("JWT_SECRET")
+	defer os.Setenv("JWT_SECRET", "test-secret")
+	assert.Panics(t, func() { Load() })
+}
+
 func TestLoadWithDefaults(t *testing.T) {
 	// Set required env var
 	os.Setenv("INTERNAL_API_KEY", "test-key")

@@ -22,30 +22,27 @@ const (
 	wsOperationTimeout = 10 * time.Second
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  wsReadBufferSize,
-	WriteBufferSize: wsWriteBufferSize,
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		// Allow requests with no origin (non-browser clients)
-		if origin == "" {
-			return true
-		}
-		// For production, configure ALLOWED_ORIGINS env var
-		// For development, allow localhost
-		allowedOrigins := []string{
-			"http://localhost:3000",
-			"http://localhost:8080",
-			"https://localhost:3000",
-			"https://localhost:8080",
-		}
-		for _, allowed := range allowedOrigins {
-			if origin == allowed {
+// newUpgrader builds a websocket upgrader that accepts the same origins the REST CORS
+// middleware does. Browser clients send an Origin header; native clients (the iOS app)
+// send none and are always allowed.
+func newUpgrader(allowedOrigins []string) websocket.Upgrader {
+	return websocket.Upgrader{
+		ReadBufferSize:  wsReadBufferSize,
+		WriteBufferSize: wsWriteBufferSize,
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			// Allow requests with no origin (non-browser clients).
+			if origin == "" {
 				return true
 			}
-		}
-		return false
-	},
+			for _, allowed := range allowedOrigins {
+				if allowed == "*" || origin == allowed {
+					return true
+				}
+			}
+			return false
+		},
+	}
 }
 
 // WSHandler handles WebSocket connections.
@@ -56,6 +53,14 @@ type WSHandler struct {
 	msgRepo       message.Repository
 	jwtValidator  middleware.TokenValidator
 	logger        *zap.Logger
+	upgrader      websocket.Upgrader
+	pusher        ChatPusher // optional
+}
+
+// WithChatPusher enables pushes to recipients who have no open connection.
+func (h *WSHandler) WithChatPusher(p ChatPusher) *WSHandler {
+	h.pusher = p
+	return h
 }
 
 // NewWSHandler creates a new WSHandler.
@@ -66,6 +71,7 @@ func NewWSHandler(
 	msgRepo message.Repository,
 	jwtValidator middleware.TokenValidator,
 	logger *zap.Logger,
+	allowedOrigins []string,
 ) *WSHandler {
 	return &WSHandler{
 		hub:           hub,
@@ -74,6 +80,7 @@ func NewWSHandler(
 		msgRepo:       msgRepo,
 		jwtValidator:  jwtValidator,
 		logger:        logger,
+		upgrader:      newUpgrader(allowedOrigins),
 	}
 }
 
@@ -98,7 +105,7 @@ func NewWSHandler(
 //     @Failure		401	"Unauthorized"
 //     @Router			/ws [get]
 func (h *WSHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		h.logger.Error("websocket upgrade failed", zap.Error(err))
 		return
@@ -330,6 +337,7 @@ func (h *WSHandler) handleChatMessage(ctx context.Context, client *ws.Client, in
 		return
 	}
 	h.hub.BroadcastTo(otherUserID, outgoing)
+	pushIfOffline(h.hub, h.pusher, otherUserID, msg)
 
 	// If the recipient is online, mark as delivered immediately
 	if h.hub.IsOnline(otherUserID) {

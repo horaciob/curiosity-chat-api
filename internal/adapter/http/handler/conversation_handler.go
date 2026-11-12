@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/middleware"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/response"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/domain/entity"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/conversation"
 )
 
@@ -14,6 +15,19 @@ type ConversationHandler struct {
 	createConversationUC *conversation.CreateConversation
 	getConversationUC    *conversation.GetConversation
 	listConversationsUC  *conversation.ListConversations
+	summarizeUC          *conversation.Summarize // optional
+}
+
+// WithSummary adds the other person's name, last message and unread count to responses.
+func (h *ConversationHandler) WithSummary(uc *conversation.Summarize) *ConversationHandler {
+	h.summarizeUC = uc
+	return h
+}
+
+func (h *ConversationHandler) summarize(r *http.Request, userID string, convs ...*entity.Conversation) {
+	if h.summarizeUC != nil {
+		h.summarizeUC.Execute(r.Context(), userID, convs)
+	}
 }
 
 // NewConversationHandler creates a new ConversationHandler.
@@ -30,13 +44,13 @@ func NewConversationHandler(
 }
 
 type createConversationRequest struct {
-	TargetUserID string `json:"target_user_id"`
+	UserID string `json:"user_id"`
 }
 
 // Create handles POST /api/v1/conversations.
 //
 //	@Summary		Create or get a conversation
-//	@Description	Starts a new conversation between the authenticated user and the target user. If a conversation already exists it is returned. Both users must mutually follow each other. Returns JSON:API compliant response.
+//	@Description	Starts a new conversation between the authenticated user and the target user. If a conversation already exists it is returned. Any two users can talk; no friendship is required. Returns JSON:API compliant response.
 //	@Tags			conversations
 //	@Accept			json
 //	@Produce		json
@@ -53,16 +67,17 @@ func (h *ConversationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	requesterID := middleware.UserIDFromContext(r.Context())
 
 	var req createConversationRequest
-	if !decodeRequestBody(w, r, &req) {
+	if !decodeAttributes(w, r, &req) {
 		return
 	}
 
-	conv, err := h.createConversationUC.Execute(r.Context(), requesterID, req.TargetUserID)
+	conv, err := h.createConversationUC.Execute(r.Context(), requesterID, req.UserID)
 	if err != nil {
 		handleUseCaseError(w, err)
 		return
 	}
 
+	h.summarize(r, requesterID, conv)
 	response.Created(w, response.NewConversationResponse(conv))
 }
 
@@ -90,6 +105,7 @@ func (h *ConversationHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.summarize(r, requesterID, conv)
 	response.Success(w, response.NewConversationResponse(conv))
 }
 
@@ -116,5 +132,6 @@ func (h *ConversationHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.summarize(r, requesterID, convs...)
 	response.Collection(w, response.NewConversationListResponse(convs), total, pagination.Limit, pagination.Offset, "/api/v1/conversations")
 }

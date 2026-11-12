@@ -23,3 +23,20 @@ func decodeRequestBody(w http.ResponseWriter, r *http.Request, dst interface{}) 
 	}
 	return true
 }
+
+// decodeAttributes reads a JSON:API document and decodes data.attributes into dst.
+func decodeAttributes(w http.ResponseWriter, r *http.Request, dst interface{}) bool {
+	var doc struct {
+		Data struct {
+			Attributes json.RawMessage `json:"attributes"`
+		} `json:"data"`
+	}
+	if !decodeRequestBody(w, r, &doc) {
+		return false
+	}
+	if len(doc.Data.Attributes) == 0 || json.Unmarshal(doc.Data.Attributes, dst) != nil {
+		response.Error(w, http.StatusBadRequest, "Bad Request", "body must be a JSON:API document with data.attributes")
+		return false
+	}
+	return true
+}

@@ -18,6 +18,12 @@ type Conversation struct {
 	User2ID       string
 	CreatedAt     time.Time
 	LastMessageAt *time.Time
+
+	// Summary fields, filled for the conversation list (see conversation.Summarize).
+	// They are relative to the user asking.
+	LastMessagePreview *string
+	UnreadCount        int
+	OtherUserName      string
 }
 
 // NewConversation creates a new Conversation, normalizing so user1_id < user2_id.

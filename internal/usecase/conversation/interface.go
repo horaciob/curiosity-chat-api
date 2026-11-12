@@ -16,8 +16,3 @@ type Repository interface {
 	CountByUser(ctx context.Context, userID string) (int, error)
 	UpdateLastMessageAt(ctx context.Context, id string, t time.Time) error
 }
-
-// FollowChecker verifies follow relationships between users.
-type FollowChecker interface {
-	AreFollowing(ctx context.Context, userA, userB string) (bool, error)
-}

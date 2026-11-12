@@ -1,0 +1,12 @@
+.git
+.env
+bin/
+logs/
+log/
+backups/
+assets/
+coverage*
+*.out
+*.test
+node_modules/
+scripts/venv/

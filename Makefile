@@ -17,7 +17,7 @@ help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 swag: ## Generate Swagger documentation
-	$(GOBIN)/swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
+	$(GOBIN)/swag init -g cmd/api/main.go -o docs --parseInternal
 
 build: swag ## Build the binary (generates docs first)
 	go build -o bin/$(BINARY_NAME) $(MAIN_PATH)/main.go

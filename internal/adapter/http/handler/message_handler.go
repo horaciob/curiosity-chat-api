@@ -3,10 +3,12 @@ package handler
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/middleware"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/response"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/domain/entity"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/logger"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/message"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/ws"
@@ -20,6 +22,13 @@ type MessageHandler struct {
 	hub           *ws.Hub
 	convRepo      message.ConversationRepository
 	msgRepo       message.Repository
+	pusher        ChatPusher // optional
+}
+
+// WithChatPusher enables pushes to recipients who have no open connection.
+func (h *MessageHandler) WithChatPusher(p ChatPusher) *MessageHandler {
+	h.pusher = p
+	return h
 }
 
 // NewMessageHandler creates a new MessageHandler.
@@ -75,7 +84,7 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 	)
 
 	var req sendMessageRequest
-	if !decodeRequestBody(w, r, &req) {
+	if !decodeAttributes(w, r, &req) {
 		logger.Error("[HANDLER] Failed to decode request body",
 			zap.String("conversation_id", conversationID),
 			zap.String("sender_id", senderID),
@@ -160,6 +169,9 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 		zap.String("message_id", msg.ID),
 	)
 
+	// Offline recipients get a push instead (the app is closed or in the background).
+	pushIfOffline(h.hub, h.pusher, otherUserID, msg)
+
 	// Immediate delivery confirmation if recipient is online
 	if h.hub.IsOnline(otherUserID) {
 		if updateErr := h.msgRepo.UpdateStatus(broadcastCtx, msg.ID, "delivered"); updateErr == nil {
@@ -215,4 +227,31 @@ func (h *MessageHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	baseURL := "/api/v1/conversations/" + conversationID + "/messages"
 	response.Collection(w, response.NewMessageListResponse(msgs), total, pagination.Limit, pagination.Offset, baseURL)
+}
+
+// ChatPusher asks user-api to push a new-message notification.
+type ChatPusher interface {
+	ChatPush(ctx context.Context, recipientID, senderID, conversationID, text string) error
+}
+
+// pushIfOffline sends a push when the recipient has no open WebSocket. Runs in the
+// background so the sender's request is not held up by APNs.
+func pushIfOffline(hub *ws.Hub, pusher ChatPusher, recipientID string, msg *entity.Message) {
+	if pusher == nil || hub.IsOnline(recipientID) {
+		return
+	}
+	text := ""
+	if msg.Content != nil {
+		text = *msg.Content
+	}
+	if msg.Type == "poi_share" {
+		text = "📍 " + text
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := pusher.ChatPush(ctx, recipientID, msg.SenderID, msg.ConversationID, text); err != nil {
+			logger.Warn("chat push failed", zap.String("recipient_id", recipientID), zap.Error(err))
+		}
+	}()
 }

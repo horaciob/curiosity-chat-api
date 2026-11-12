@@ -2,27 +2,18 @@ package main
 
 import (
 	"context"
-	"errors"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 
 	_ "github.com/horaciobranciforte/curiosity-chat-api/docs"
-	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/handler"
-	"github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/http/router"
-	postgresrepo "github.com/horaciobranciforte/curiosity-chat-api/internal/adapter/repository/postgres"
-	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/authclient"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/app"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/config"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/database"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/logger"
-	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/conversation"
-	"github.com/horaciobranciforte/curiosity-chat-api/internal/usecase/message"
-	"github.com/horaciobranciforte/curiosity-chat-api/internal/ws"
 )
 
 //	@title			Curiosity Chat API
@@ -51,72 +42,20 @@ func main() {
 	}
 	defer logger.Sync()
 
-	// Database
 	db, err := database.NewPostgresDB(cfg.DSN)
 	if err != nil {
 		logger.Log.Fatal("failed to connect to database", zap.Error(err))
 	}
-	defer db.Close()
 
-	// Repositories
-	convRepo := postgresrepo.NewConversationRepository(db)
-	msgRepo := postgresrepo.NewMessageRepository(db)
+	application := app.Build(cfg, db)
+	defer application.Close()
 
-	// Use cases — conversation
-	createConversationUC := conversation.NewCreateConversation(convRepo)
-	getConversationUC := conversation.NewGetConversation(convRepo)
-	listConversationsUC := conversation.NewListConversations(convRepo)
+	// The signal handling is all that is left here: everything the service is made of lives
+	// in app.Build, where a test can reach it.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	// Use cases — message
-	sendMessageUC := message.NewSendMessage(msgRepo, convRepo)
-	getMessagesUC := message.NewGetMessages(msgRepo, convRepo)
-
-	// Auth client — delegates token validation to curiosity-user-api
-	authClient := authclient.NewClient(cfg.UserAPIURL, cfg.InternalAPIKey)
-
-	// WebSocket hub
-	hub := ws.NewHub()
-	go hub.Run()
-
-	// Handlers
-	healthHandler := handler.NewHealthHandler()
-	conversationHandler := handler.NewConversationHandler(createConversationUC, getConversationUC, listConversationsUC)
-	messageHandler := handler.NewMessageHandler(sendMessageUC, getMessagesUC, hub, convRepo, msgRepo)
-	wsHandler := handler.NewWSHandler(hub, sendMessageUC, convRepo, msgRepo, authClient, logger.Log)
-	internalHandler := handler.NewInternalHandler(hub)
-
-	// Router
-	r := router.NewRouter(healthHandler, conversationHandler, messageHandler, wsHandler, internalHandler, authClient, cfg.InternalAPIKey, cfg.AllowedOrigins)
-
-	// HTTP server
-	srv := &http.Server{
-		Addr:         ":" + cfg.ServerPort,
-		Handler:      r,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+	if err := application.Run(ctx); err != nil {
+		logger.Log.Fatal("server failed", zap.Error(err))
 	}
-
-	// Graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		logger.Info("server starting", zap.String("port", cfg.ServerPort))
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Fatal("server error", zap.Error(err))
-		}
-	}()
-
-	<-quit
-	logger.Info("shutting down server...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(ctx); err != nil {
-		logger.Error("server forced to shutdown", zap.Error(err))
-	}
-
-	logger.Info("server stopped")
 }

@@ -48,19 +48,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Paginated list of conversations",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.ConversationListResponse"
+                            "$ref": "#/definitions/handler.ConversationListResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     }
                 }
@@ -71,7 +71,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Starts a new conversation between the authenticated user and the target user. If a conversation already exists it is returned. Both users must mutually follow each other. Returns JSON:API compliant response.",
+                "description": "Starts a new conversation between the authenticated user and the target user. If a conversation already exists it is returned. Any two users can talk; no friendship is required. Returns JSON:API compliant response.",
                 "consumes": [
                     "application/json"
                 ],
@@ -89,7 +89,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.createConversationRequest"
+                            "$ref": "#/definitions/handler.createConversationRequest"
                         }
                     }
                 ],
@@ -97,37 +97,37 @@ const docTemplate = `{
                     "200": {
                         "description": "Conversation already exists",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.ConversationResponse"
+                            "$ref": "#/definitions/handler.ConversationResponse"
                         }
                     },
                     "201": {
                         "description": "Conversation created",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.ConversationResponse"
+                            "$ref": "#/definitions/handler.ConversationResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "403": {
                         "description": "Users do not mutually follow each other",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     }
                 }
@@ -161,31 +161,31 @@ const docTemplate = `{
                     "200": {
                         "description": "Conversation",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.ConversationResponse"
+                            "$ref": "#/definitions/handler.ConversationResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — not a participant",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "404": {
                         "description": "Not found",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     }
                 }
@@ -231,31 +231,31 @@ const docTemplate = `{
                     "200": {
                         "description": "Paginated list of messages",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.MessageListResponse"
+                            "$ref": "#/definitions/handler.MessageListResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — not a participant",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "404": {
                         "description": "Conversation not found",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     }
                 }
@@ -291,7 +291,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.sendMessageRequest"
+                            "$ref": "#/definitions/handler.sendMessageRequest"
                         }
                     }
                 ],
@@ -299,57 +299,37 @@ const docTemplate = `{
                     "201": {
                         "description": "Message created",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.MessageResponse"
+                            "$ref": "#/definitions/handler.MessageResponse"
                         }
                     },
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden — not a participant",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "404": {
                         "description": "Conversation not found",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIErrorsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/health": {
-            "get": {
-                "description": "Returns the service status in JSON:API format",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "health"
-                ],
-                "summary": "Health check",
-                "responses": {
-                    "200": {
-                        "description": "Service status",
-                        "schema": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.HealthJSONAPIResponse"
+                            "$ref": "#/definitions/handler.JSONAPIErrorsResponse"
                         }
                     }
                 }
@@ -374,7 +354,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "internal_adapter_http_handler.ConversationAttributes": {
+        "handler.ConversationAttributes": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -395,7 +375,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_adapter_http_handler.ConversationListResponse": {
+        "handler.ConversationListResponse": {
             "type": "object",
             "properties": {
                 "data": {
@@ -404,14 +384,14 @@ const docTemplate = `{
                         "type": "object",
                         "properties": {
                             "attributes": {
-                                "$ref": "#/definitions/internal_adapter_http_handler.ConversationAttributes"
+                                "$ref": "#/definitions/handler.ConversationAttributes"
                             },
                             "id": {
                                 "type": "string",
                                 "example": "550e8400-e29b-41d4-a716-446655440000"
                             },
                             "links": {
-                                "$ref": "#/definitions/internal_adapter_http_handler.JSONAPILinks"
+                                "$ref": "#/definitions/handler.JSONAPILinks"
                             },
                             "type": {
                                 "type": "string",
@@ -442,25 +422,25 @@ const docTemplate = `{
                     }
                 },
                 "meta": {
-                    "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIMeta"
+                    "$ref": "#/definitions/handler.JSONAPIMeta"
                 }
             }
         },
-        "internal_adapter_http_handler.ConversationResponse": {
+        "handler.ConversationResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "object",
                     "properties": {
                         "attributes": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.ConversationAttributes"
+                            "$ref": "#/definitions/handler.ConversationAttributes"
                         },
                         "id": {
                             "type": "string",
                             "example": "550e8400-e29b-41d4-a716-446655440000"
                         },
                         "links": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPILinks"
+                            "$ref": "#/definitions/handler.JSONAPILinks"
                         },
                         "type": {
                             "type": "string",
@@ -470,34 +450,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_adapter_http_handler.HealthJSONAPIResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "object",
-                    "properties": {
-                        "attributes": {
-                            "type": "object",
-                            "properties": {
-                                "status": {
-                                    "type": "string",
-                                    "example": "ok"
-                                }
-                            }
-                        },
-                        "id": {
-                            "type": "string",
-                            "example": "550e8400-e29b-41d4-a716-446655440000"
-                        },
-                        "type": {
-                            "type": "string",
-                            "example": "conversations"
-                        }
-                    }
-                }
-            }
-        },
-        "internal_adapter_http_handler.JSONAPIError": {
+        "handler.JSONAPIError": {
             "type": "object",
             "properties": {
                 "detail": {
@@ -514,18 +467,18 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_adapter_http_handler.JSONAPIErrorsResponse": {
+        "handler.JSONAPIErrorsResponse": {
             "type": "object",
             "properties": {
                 "errors": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIError"
+                        "$ref": "#/definitions/handler.JSONAPIError"
                     }
                 }
             }
         },
-        "internal_adapter_http_handler.JSONAPILinks": {
+        "handler.JSONAPILinks": {
             "type": "object",
             "properties": {
                 "self": {
@@ -534,7 +487,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_adapter_http_handler.JSONAPIMeta": {
+        "handler.JSONAPIMeta": {
             "type": "object",
             "properties": {
                 "limit": {
@@ -551,7 +504,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_adapter_http_handler.MessageAttributes": {
+        "handler.MessageAttributes": {
             "type": "object",
             "properties": {
                 "content": {
@@ -588,7 +541,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_adapter_http_handler.MessageListResponse": {
+        "handler.MessageListResponse": {
             "type": "object",
             "properties": {
                 "data": {
@@ -597,14 +550,14 @@ const docTemplate = `{
                         "type": "object",
                         "properties": {
                             "attributes": {
-                                "$ref": "#/definitions/internal_adapter_http_handler.MessageAttributes"
+                                "$ref": "#/definitions/handler.MessageAttributes"
                             },
                             "id": {
                                 "type": "string",
                                 "example": "550e8400-e29b-41d4-a716-446655440000"
                             },
                             "links": {
-                                "$ref": "#/definitions/internal_adapter_http_handler.JSONAPILinks"
+                                "$ref": "#/definitions/handler.JSONAPILinks"
                             },
                             "type": {
                                 "type": "string",
@@ -633,25 +586,25 @@ const docTemplate = `{
                     }
                 },
                 "meta": {
-                    "$ref": "#/definitions/internal_adapter_http_handler.JSONAPIMeta"
+                    "$ref": "#/definitions/handler.JSONAPIMeta"
                 }
             }
         },
-        "internal_adapter_http_handler.MessageResponse": {
+        "handler.MessageResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "object",
                     "properties": {
                         "attributes": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.MessageAttributes"
+                            "$ref": "#/definitions/handler.MessageAttributes"
                         },
                         "id": {
                             "type": "string",
                             "example": "550e8400-e29b-41d4-a716-446655440000"
                         },
                         "links": {
-                            "$ref": "#/definitions/internal_adapter_http_handler.JSONAPILinks"
+                            "$ref": "#/definitions/handler.JSONAPILinks"
                         },
                         "type": {
                             "type": "string",
@@ -661,15 +614,15 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_adapter_http_handler.createConversationRequest": {
+        "handler.createConversationRequest": {
             "type": "object",
             "properties": {
-                "target_user_id": {
+                "user_id": {
                     "type": "string"
                 }
             }
         },
-        "internal_adapter_http_handler.sendMessageRequest": {
+        "handler.sendMessageRequest": {
             "type": "object",
             "properties": {
                 "content": {

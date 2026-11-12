@@ -14,16 +14,23 @@ type ConversationResponse struct {
 	User2ID       string  `jsonapi:"attr,user2_id"`
 	CreatedAt     string  `jsonapi:"attr,created_at"`
 	LastMessageAt *string `jsonapi:"attr,last_message_at,omitempty"`
-	Links         *jsonapi.Links
+	// Relative to the requesting user.
+	LastMessagePreview *string `jsonapi:"attr,last_message_preview,omitempty"`
+	UnreadCount        int     `jsonapi:"attr,unread_count"`
+	OtherUserName      string  `jsonapi:"attr,other_user_name,omitempty"`
+	Links              *jsonapi.Links
 }
 
 // NewConversationResponse converts an entity to a JSON:API DTO.
 func NewConversationResponse(c *entity.Conversation) *ConversationResponse {
 	dto := &ConversationResponse{
-		ID:        c.ID,
-		User1ID:   c.User1ID,
-		User2ID:   c.User2ID,
-		CreatedAt: c.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:                 c.ID,
+		User1ID:            c.User1ID,
+		User2ID:            c.User2ID,
+		CreatedAt:          c.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		LastMessagePreview: c.LastMessagePreview,
+		UnreadCount:        c.UnreadCount,
+		OtherUserName:      c.OtherUserName,
 		Links: &jsonapi.Links{
 			"self": fmt.Sprintf("/api/v1/conversations/%s", c.ID),
 		},

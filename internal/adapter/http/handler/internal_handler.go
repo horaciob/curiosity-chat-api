@@ -2,10 +2,15 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/ws"
 )
+
+// maxEventSize bounds relayed events; they are small notification payloads.
+const maxEventSize = 64 << 10
 
 // InternalHandler handles internal service-to-service endpoints.
 type InternalHandler struct {
@@ -17,19 +22,16 @@ func NewInternalHandler(hub *ws.Hub) *InternalHandler {
 	return &InternalHandler{hub: hub}
 }
 
-type pushRequest struct {
-	UserID  string          `json:"user_id"`
-	Payload json.RawMessage `json:"payload"`
-}
-
-// Push handles POST /internal/push — receives a JSON payload from another service
-// and broadcasts it to the target user via WebSocket.
-func (h *InternalHandler) Push(w http.ResponseWriter, r *http.Request) {
-	var req pushRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID == "" || len(req.Payload) == 0 {
+// Events handles POST /internal/users/{userID}/events: the body is a JSON event that is
+// delivered as-is to every WebSocket connection the user has open (user-api relays new
+// notifications this way). A user with nothing open is not an error.
+func (h *InternalHandler) Events(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userID")
+	payload, err := io.ReadAll(io.LimitReader(r.Body, maxEventSize))
+	if err != nil || userID == "" || !json.Valid(payload) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	h.hub.BroadcastRaw(req.UserID, req.Payload)
+	h.hub.BroadcastRaw(userID, payload)
 	w.WriteHeader(http.StatusNoContent)
 }

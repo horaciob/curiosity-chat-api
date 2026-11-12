@@ -126,3 +126,61 @@ func (r *MessageRepository) CountTotalUnreadForUser(ctx context.Context, userID 
 	}
 	return count, nil
 }
+
+// LastMessagePreviews returns the newest message of each conversation as list-preview
+// text: the content for text messages, "📍 <place>" for shared places.
+func (r *MessageRepository) LastMessagePreviews(ctx context.Context, conversationIDs []string) (map[string]string, error) {
+	previews := make(map[string]string, len(conversationIDs))
+	if len(conversationIDs) == 0 {
+		return previews, nil
+	}
+	q, args, err := sqlx.In(`SELECT DISTINCT ON (conversation_id) conversation_id, type, COALESCE(content, '') AS content
+	      FROM messages
+	      WHERE conversation_id IN (?)
+	      ORDER BY conversation_id, created_at DESC`, conversationIDs)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		ConversationID string `db:"conversation_id"`
+		Type           string `db:"type"`
+		Content        string `db:"content"`
+	}
+	if err := r.db.SelectContext(ctx, &rows, r.db.Rebind(q), args...); err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if row.Type == "poi_share" {
+			previews[row.ConversationID] = "📍 " + row.Content
+		} else {
+			previews[row.ConversationID] = row.Content
+		}
+	}
+	return previews, nil
+}
+
+// UnreadCountsForUser returns, per conversation, the messages userID has not read.
+func (r *MessageRepository) UnreadCountsForUser(ctx context.Context, userID string, conversationIDs []string) (map[string]int, error) {
+	counts := make(map[string]int, len(conversationIDs))
+	if len(conversationIDs) == 0 {
+		return counts, nil
+	}
+	q, args, err := sqlx.In(`SELECT conversation_id, COUNT(*) AS unread
+	      FROM messages
+	      WHERE conversation_id IN (?) AND sender_id != ? AND status != 'read'
+	      GROUP BY conversation_id`, conversationIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		ConversationID string `db:"conversation_id"`
+		Unread         int    `db:"unread"`
+	}
+	if err := r.db.SelectContext(ctx, &rows, r.db.Rebind(q), args...); err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		counts[row.ConversationID] = row.Unread
+	}
+	return counts, nil
+}

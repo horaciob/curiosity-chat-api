@@ -42,8 +42,8 @@ func TestConversationHandlerCreateSuccess(t *testing.T) {
 	repo.On("GetByParticipants", mock.Anything, userA, userB).Return(nil, apperror.NotFound("not found", nil))
 	repo.On("Create", mock.Anything, mock.AnythingOfType("*entity.Conversation")).Return(nil)
 
-	body := map[string]string{"target_user_id": userB}
-	jsonBody, _ := json.Marshal(body)
+	body := map[string]string{"user_id": userB}
+	jsonBody, _ := json.Marshal(map[string]any{"data": map[string]any{"attributes": body}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/conversations", bytes.NewReader(jsonBody))
 	req = addUserIDToContext(req, userA)
 	rr := httptest.NewRecorder()
@@ -69,8 +69,8 @@ func TestConversationHandlerCreateInvalidBody(t *testing.T) {
 func TestConversationHandlerCreateValidationError(t *testing.T) {
 	handler, _ := setupConversationHandler()
 
-	body := map[string]string{"target_user_id": "not-a-uuid"}
-	jsonBody, _ := json.Marshal(body)
+	body := map[string]string{"user_id": "not-a-uuid"}
+	jsonBody, _ := json.Marshal(map[string]any{"data": map[string]any{"attributes": body}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/conversations", bytes.NewReader(jsonBody))
 	req = addUserIDToContext(req, uuid.New().String())
 	rr := httptest.NewRecorder()
@@ -89,8 +89,8 @@ func TestConversationHandlerCreateNotFound(t *testing.T) {
 	repo.On("GetByParticipants", mock.Anything, userA, userB).Return(nil, apperror.NotFound("not found", nil))
 	repo.On("Create", mock.Anything, mock.AnythingOfType("*entity.Conversation")).Return(nil)
 
-	body := map[string]string{"target_user_id": userB}
-	jsonBody, _ := json.Marshal(body)
+	body := map[string]string{"user_id": userB}
+	jsonBody, _ := json.Marshal(map[string]any{"data": map[string]any{"attributes": body}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/conversations", bytes.NewReader(jsonBody))
 	req = addUserIDToContext(req, userA)
 	rr := httptest.NewRecorder()

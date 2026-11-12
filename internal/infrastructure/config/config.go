@@ -10,6 +10,8 @@ type Config struct {
 	ServerPort     string
 	DSN            string
 	InternalAPIKey string
+	// JWTSecret validates the access tokens user-api issues. Must match user-api's.
+	JWTSecret      string
 	UserAPIURL     string
 	LogLevel       string
 	LogFormat      string
@@ -22,6 +24,7 @@ func Load() *Config {
 		ServerPort:     getEnv("SERVER_PORT", "8081"),
 		DSN:            buildDSN(),
 		InternalAPIKey: mustEnv("INTERNAL_API_KEY"),
+		JWTSecret:      mustEnv("JWT_SECRET"),
 		UserAPIURL:     getEnv("USER_API_URL", "http://localhost:8084"),
 		LogLevel:       getEnv("LOG_LEVEL", "info"),
 		LogFormat:      getEnv("LOG_FORMAT", "text"),

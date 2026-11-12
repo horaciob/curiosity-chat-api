@@ -45,7 +45,7 @@ func TestMessageHandlerSendTextSuccess(t *testing.T) {
 	msgRepo.On("CountTotalUnreadForUser", mock.Anything, mock.Anything).Return(1, nil)
 
 	body := map[string]string{"type": "text", "content": "Hello!"}
-	jsonBody, _ := json.Marshal(body)
+	jsonBody, _ := json.Marshal(map[string]any{"data": map[string]any{"attributes": body}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/conversations/"+conv.ID+"/messages", bytes.NewReader(jsonBody))
 	req = addUserIDToContext(req, senderID)
 	rr := httptest.NewRecorder()
@@ -76,7 +76,7 @@ func TestMessageHandlerSendPOIShareSuccess(t *testing.T) {
 	msgRepo.On("CountTotalUnreadForUser", mock.Anything, mock.Anything).Return(1, nil)
 
 	body := map[string]string{"type": "poi_share", "poi_id": poiID}
-	jsonBody, _ := json.Marshal(body)
+	jsonBody, _ := json.Marshal(map[string]any{"data": map[string]any{"attributes": body}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/conversations/"+conv.ID+"/messages", bytes.NewReader(jsonBody))
 	req = addUserIDToContext(req, senderID)
 	rr := httptest.NewRecorder()
@@ -116,7 +116,7 @@ func TestMessageHandlerSendConversationNotFound(t *testing.T) {
 	convRepo.On("GetByID", mock.Anything, convID).Return(nil, apperror.NotFound("not found", nil))
 
 	body := map[string]string{"type": "text", "content": "Hello!"}
-	jsonBody, _ := json.Marshal(body)
+	jsonBody, _ := json.Marshal(map[string]any{"data": map[string]any{"attributes": body}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/conversations/"+convID+"/messages", bytes.NewReader(jsonBody))
 	req = addUserIDToContext(req, senderID)
 	rr := httptest.NewRecorder()
@@ -139,7 +139,7 @@ func TestMessageHandlerSendNotParticipant(t *testing.T) {
 	convRepo.On("GetByID", mock.Anything, conv.ID).Return(conv, nil)
 
 	body := map[string]string{"type": "text", "content": "Hello!"}
-	jsonBody, _ := json.Marshal(body)
+	jsonBody, _ := json.Marshal(map[string]any{"data": map[string]any{"attributes": body}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/conversations/"+conv.ID+"/messages", bytes.NewReader(jsonBody))
 	req = addUserIDToContext(req, outsider)
 	rr := httptest.NewRecorder()
@@ -163,7 +163,7 @@ func TestMessageHandlerSendValidationError(t *testing.T) {
 	followChecker.On("AreFollowing", mock.Anything, senderID, mock.Anything).Return(true, nil)
 
 	body := map[string]string{"type": "text", "content": ""}
-	jsonBody, _ := json.Marshal(body)
+	jsonBody, _ := json.Marshal(map[string]any{"data": map[string]any{"attributes": body}})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/conversations/"+conv.ID+"/messages", bytes.NewReader(jsonBody))
 	req = addUserIDToContext(req, senderID)
 	rr := httptest.NewRecorder()

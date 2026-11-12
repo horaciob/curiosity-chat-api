@@ -76,12 +76,11 @@ User A  →  follows →  User B   (accepted)
 User B  →  follows →  User A   (accepted)
 ```
 
-When `POST /api/v1/conversations` is called, curiosity-chat-api calls
-`curiosity-api`'s `/api/v1/users/{id}/followers` in both directions to verify mutual follow before allowing the conversation.
+Conversations are open to any signed-in user; the app offers them from friends and search.
 
 ### 2. Authentication
 
-All tokens are issued by `curiosity-api` (SSO login). The `JWT_SECRET` is shared between the two services.
+All tokens are issued by curiosity-user-api (`POST /api/v1/auth/token`). chat-api validates them locally with the shared `JWT_SECRET` (issuer `curiosity-user-api`, audience `curiosity-api`); admin tokens are rejected.
 
 Token structure (HS256, standard `RegisteredClaims`):
 - `sub` → userID (UUID)
@@ -93,14 +92,14 @@ The WebSocket endpoint reads the token from the **first application frame** (nev
 ### 3. REST flow — start a conversation and send a message
 
 ```
-1. Obtain a token from curiosity-api login
-   POST http://localhost:8080/api/v1/auth/login
-   → { "token": "<jwt>" }
+1. Obtain a token from curiosity-user-api
+   POST http://localhost:8084/api/v1/auth/token  {"grant_type":"dev","email":"…"}
+   → { "access_token": "<jwt>", "refresh_token": "…", "user_id": "…" }
 
 2. Create (or retrieve) a conversation
    POST http://localhost:8081/api/v1/conversations
    Authorization: Bearer <jwt>
-   { "target_user_id": "<uuid>" }
+   { "data": { "type": "conversations", "attributes": { "user_id": "<uuid>" } } }
    → 201 { "data": { "id": "<conv-uuid>", "type": "conversations", ... } }
      (or 200 if the conversation already exists)
 
@@ -232,17 +231,7 @@ Default for development:
 
 All data endpoints use [JSON:API](https://jsonapi.org/) format. WebSocket and health use plain JSON.
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `GET` | `/api/v1/health` | No | Health check |
-| `GET` | `/api/v1/ws` | Via first WS frame | WebSocket connection |
-| `POST` | `/api/v1/conversations` | Bearer | Create or get existing conversation |
-| `GET` | `/api/v1/conversations` | Bearer | List my conversations (paginated, newest first) |
-| `GET` | `/api/v1/conversations/{id}` | Bearer | Get a conversation |
-| `GET` | `/api/v1/conversations/{id}/messages` | Bearer | Message history (newest first, paginated) |
-| `POST` | `/api/v1/conversations/{id}/messages` | Bearer | Send a message (HTTP fallback) |
-| `GET` | `/swagger/` | No | Swagger UI |
-| `GET` | `/swagger/doc.json` | No | OpenAPI spec |
+> The endpoint list lives in [`API.md`](../API.md) at the repository root — the single contract for user-api, chat-api and poi-api (routes, filters, bodies). It replaced the per-repo tables, which had drifted.
 
 ---
 

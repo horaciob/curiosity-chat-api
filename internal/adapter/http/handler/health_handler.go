@@ -19,14 +19,7 @@ type HealthHandler struct{}
 // NewHealthHandler creates a new HealthHandler.
 func NewHealthHandler() *HealthHandler { return &HealthHandler{} }
 
-// Health handles GET /api/v1/health.
-//
-//	@Summary		Health check
-//	@Description	Returns the service status in JSON:API format
-//	@Tags			health
-//	@Produce		json
-//	@Success		200	{object}	HealthJSONAPIResponse	"Service status"
-//	@Router			/health [get]
+// Health handles GET /health.
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", jsonapi.MediaType)
 	w.WriteHeader(http.StatusOK)

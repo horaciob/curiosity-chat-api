@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"os"
 
@@ -28,6 +29,10 @@ func NewRouter(
 
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.RealIP)
+	r.Use(custommiddleware.Metrics)
+	// Compression wraps the response writer, which a WebSocket upgrade cannot go through.
+	r.Use(custommiddleware.SkipForWebSocket(chimiddleware.Compress(5, "application/json", "application/vnd.api+json")))
+	r.Use(custommiddleware.NewRateLimiter(custommiddleware.DefaultRateLimiterConfig()).Middleware)
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 
@@ -61,17 +66,22 @@ func NewRouter(
 	})
 	r.Get("/swagger/", swaggerUIHandler)
 
+	// Scrape endpoint at the root, matching the other services so one scrape config covers
+	// all three.
+	r.Method(http.MethodGet, "/metrics", promhttp.Handler())
+
+	// Service-to-service routes, at the root like the other services.
+	r.Route("/internal", func(r chi.Router) {
+		r.Use(custommiddleware.InternalAuthenticate(internalAPIKey))
+		r.Post("/users/{userID}/events", internalHandler.Events)
+	})
+
+	r.Get("/health", healthHandler.Health)
+
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/health", healthHandler.Health)
 
 		// WebSocket — auth via first frame (no middleware needed)
 		r.Get("/ws", wsHandler.ServeWS)
-
-		// Internal service-to-service routes
-		r.Group(func(r chi.Router) {
-			r.Use(custommiddleware.InternalAuthenticate(internalAPIKey))
-			r.Post("/internal/push", internalHandler.Push)
-		})
 
 		// Protected routes
 		r.Group(func(r chi.Router) {
