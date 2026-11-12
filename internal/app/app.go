@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/jwks"
 	"net/http"
 	"time"
 
@@ -51,9 +52,19 @@ func Build(cfg *config.Config, db *sqlx.DB) *App {
 	sendMessageUC := message.NewSendMessage(msgRepo, convRepo)
 	getMessagesUC := message.NewGetMessages(msgRepo, convRepo)
 
-	// Tokens are validated locally with the secret user-api signs them with — no network
-	// round trip on every request and WebSocket connect.
-	tokens := jwtauth.New(cfg.JWTSecret)
+	// Tokens are validated locally — with user-api's public keys (JWKS, EdDSA) and/or the
+	// shared secret (HS256) — with no round trip on every request and WebSocket connect.
+	// config.Load already refuses a config with neither; an empty one here accepts no token.
+	tokenKeys, err := jwks.New(cfg.JWTSecret, cfg.JWTJWKSURL)
+	if err != nil {
+		tokenKeys = jwks.Secret("")
+	}
+	if cfg.JWTJWKSURL != "" {
+		if err := tokenKeys.Refresh(context.Background()); err != nil {
+			logger.Log.Warn("JWKS not reachable yet; will retry on first token", zap.Error(err))
+		}
+	}
+	tokens := jwtauth.NewWithKeys(tokenKeys)
 
 	hub := ws.NewHub()
 

@@ -11,7 +11,9 @@ type Config struct {
 	DSN            string
 	InternalAPIKey string
 	// JWTSecret validates the access tokens user-api issues. Must match user-api's.
-	JWTSecret      string
+	JWTSecret string
+	// JWTJWKSURL is user-api's /.well-known/jwks.json, for EdDSA tokens.
+	JWTJWKSURL     string
 	UserAPIURL     string
 	LogLevel       string
 	LogFormat      string
@@ -20,11 +22,15 @@ type Config struct {
 
 // Load reads environment variables and returns a Config.
 func Load() *Config {
+	if os.Getenv("JWT_SECRET") == "" && os.Getenv("JWT_JWKS_URL") == "" {
+		panic("JWT_JWKS_URL or JWT_SECRET must be set")
+	}
 	return &Config{
 		ServerPort:     getEnv("SERVER_PORT", "8081"),
 		DSN:            buildDSN(),
 		InternalAPIKey: mustEnv("INTERNAL_API_KEY"),
-		JWTSecret:      mustEnv("JWT_SECRET"),
+		JWTSecret:      getEnv("JWT_SECRET", ""),
+		JWTJWKSURL:     getEnv("JWT_JWKS_URL", ""),
 		UserAPIURL:     getEnv("USER_API_URL", "http://localhost:8084"),
 		LogLevel:       getEnv("LOG_LEVEL", "info"),
 		LogFormat:      getEnv("LOG_FORMAT", "text"),

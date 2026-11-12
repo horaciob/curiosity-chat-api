@@ -5,6 +5,7 @@ package jwtauth
 
 import (
 	"errors"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/jwks"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -24,22 +25,25 @@ type claims struct {
 
 // Validator checks app-user access tokens.
 type Validator struct {
-	secret []byte
+	keys *jwks.Keys
 }
 
-// New creates a Validator for the shared HMAC secret.
+// New creates a Validator that accepts HS256 tokens signed with the shared secret.
 func New(secret string) *Validator {
-	return &Validator{secret: []byte(secret)}
+	return NewWithKeys(jwks.Secret(secret))
+}
+
+// NewWithKeys creates a Validator for the given key set (user-api's JWKS and/or secret).
+func NewWithKeys(keys *jwks.Keys) *Validator {
+	return &Validator{keys: keys}
 }
 
 // Validate returns the user ID of a valid app-user token. Admin tokens are rejected:
 // their subject is an admin account, not someone who can chat.
 func (v *Validator) Validate(tokenString string) (string, error) {
 	var c claims
-	token, err := jwt.ParseWithClaims(tokenString, &c, func(t *jwt.Token) (interface{}, error) {
-		return v.secret, nil
-	},
-		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	token, err := jwt.ParseWithClaims(tokenString, &c, v.keys.Keyfunc,
+		jwt.WithValidMethods(v.keys.Methods()),
 		jwt.WithIssuer(issuer),
 		jwt.WithAudience(audience),
 		jwt.WithExpirationRequired(),
