@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 	"time"
@@ -120,6 +121,89 @@ type Hub struct {
 	unregister chan *Client
 	broadcast  chan broadcastEnvelope
 	mu         sync.RWMutex
+	cluster    Cluster // optional: fan deliveries and presence out across replicas
+}
+
+// WithCluster makes the hub one of several replicas sharing deliveries and presence.
+// Call before Run and StartCluster.
+func (h *Hub) WithCluster(c Cluster) *Hub {
+	h.cluster = c
+	return h
+}
+
+// StartCluster receives deliveries published by any replica and keeps this replica's
+// presence claims fresh, until ctx is done. A no-op without a cluster.
+func (h *Hub) StartCluster(ctx context.Context, onError func(error)) {
+	if h.cluster == nil {
+		return
+	}
+	go func() {
+		for ctx.Err() == nil {
+			err := h.cluster.Subscribe(ctx, func(userID string, payload []byte) {
+				h.broadcast <- broadcastEnvelope{targetUserID: userID, payload: payload}
+			})
+			if err != nil && ctx.Err() == nil {
+				if onError != nil {
+					onError(err)
+				}
+				time.Sleep(time.Second) // Redis restarting: retry, don't spin
+			}
+		}
+	}()
+	go func() {
+		t := time.NewTicker(presenceRefresh)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if err := h.cluster.SetOnline(ctx, h.localUsers()...); err != nil && onError != nil {
+					onError(err)
+				}
+			}
+		}
+	}()
+}
+
+func (h *Hub) localUsers() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	users := make([]string, 0, len(h.clients))
+	for u := range h.clients {
+		users = append(users, u)
+	}
+	return users
+}
+
+// deliver sends payload to every connection of userID: through the cluster when there is
+// one (every replica, this one included, receives it), locally otherwise or if publishing
+// fails — a replica that loses Redis still serves its own connections.
+func (h *Hub) deliver(userID string, payload []byte) {
+	if h.cluster != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		err := h.cluster.Publish(ctx, userID, payload)
+		cancel()
+		if err == nil {
+			return
+		}
+	}
+	h.broadcast <- broadcastEnvelope{targetUserID: userID, payload: payload}
+}
+
+func (h *Hub) clusterPresence(userID string, online bool) {
+	if h.cluster == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if online {
+			_ = h.cluster.SetOnline(ctx, userID)
+		} else {
+			_ = h.cluster.SetOffline(ctx, userID)
+		}
+	}()
 }
 
 // NewHub creates a new Hub.
@@ -138,22 +222,31 @@ func (h *Hub) Run() {
 		select {
 		case client := <-h.register:
 			h.mu.Lock()
-			if h.clients[client.UserID] == nil {
+			first := h.clients[client.UserID] == nil
+			if first {
 				h.clients[client.UserID] = make(map[*Client]bool)
 			}
 			h.clients[client.UserID][client] = true
 			h.mu.Unlock()
+			if first {
+				h.clusterPresence(client.UserID, true)
+			}
 
 		case client := <-h.unregister:
 			h.mu.Lock()
+			last := false
 			if conns, ok := h.clients[client.UserID]; ok {
 				delete(conns, client)
 				if len(conns) == 0 {
 					delete(h.clients, client.UserID)
+					last = true
 				}
 			}
 			h.mu.Unlock()
 			close(client.Send)
+			if last {
+				h.clusterPresence(client.UserID, false)
+			}
 
 		case env := <-h.broadcast:
 			h.mu.RLock()
@@ -182,7 +275,7 @@ func (h *Hub) BroadcastTo(userID string, msg OutgoingMessage) {
 	if err != nil {
 		return
 	}
-	h.broadcast <- broadcastEnvelope{targetUserID: userID, payload: data}
+	h.deliver(userID, data)
 }
 
 // BroadcastJSON serializes v as JSON and sends it to all connections of the given user.
@@ -192,22 +285,26 @@ func (h *Hub) BroadcastJSON(userID string, v any) {
 	if err != nil {
 		return
 	}
-	h.broadcast <- broadcastEnvelope{targetUserID: userID, payload: data}
+	h.deliver(userID, data)
 }
 
 // BroadcastRaw sends a pre-serialized JSON payload to all connections of the given user.
 func (h *Hub) BroadcastRaw(userID string, data []byte) {
-	h.broadcast <- broadcastEnvelope{targetUserID: userID, payload: data}
+	h.deliver(userID, data)
 }
 
-// IsOnline returns true if the user has at least one active WebSocket connection.
+// IsOnline returns true if the user has at least one active WebSocket connection — on
+// this replica, or on any replica when the hub is part of a cluster.
 func (h *Hub) IsOnline(userID string) bool {
 	h.mu.RLock()
-	defer h.mu.RUnlock()
-	if conns, ok := h.clients[userID]; ok {
-		return len(conns) > 0
+	local := len(h.clients[userID]) > 0
+	h.mu.RUnlock()
+	if local || h.cluster == nil {
+		return local
 	}
-	return false
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	return h.cluster.IsOnline(ctx, userID)
 }
 
 // WritePump pumps messages from the hub to the WebSocket connection.

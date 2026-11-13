@@ -76,6 +76,21 @@ func Build(cfg *config.Config, db *sqlx.DB) *App {
 	logger.Log.Info("internal callers accepted", zap.Strings("callers", internalKeys.Callers()))
 
 	hub := ws.NewHub()
+	// With REDIS_URL, replicas share deliveries and presence (see ws.Cluster); without it
+	// this is a single-replica hub, as before.
+	if cfg.RedisURL != "" {
+		cluster, err := ws.NewRedisCluster(cfg.RedisURL)
+		if err != nil {
+			panic(err)
+		}
+		pingCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		if err := cluster.Ping(pingCtx); err != nil {
+			logger.Log.Warn("Redis not reachable yet; deliveries stay local until it is", zap.Error(err))
+		}
+		cancel()
+		hub.WithCluster(cluster)
+		logger.Log.Info("chat hub clustered over Redis")
+	}
 
 	healthHandler := handler.NewHealthHandler()
 	// user-api resolves names for the conversation list and sends pushes to recipients
@@ -114,6 +129,7 @@ func Build(cfg *config.Config, db *sqlx.DB) *App {
 // what a startup failure means, instead of the process exiting from inside a library.
 func (a *App) Run(ctx context.Context) error {
 	go a.Hub.Run()
+	a.Hub.StartCluster(ctx, func(err error) { logger.Log.Warn("chat cluster", zap.Error(err)) })
 
 	errs := make(chan error, 1)
 	go func() {

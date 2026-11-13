@@ -13,7 +13,9 @@ type Config struct {
 	// JWTSecret validates the access tokens user-api issues. Must match user-api's.
 	JWTSecret string
 	// JWTJWKSURL is user-api's /.well-known/jwks.json, for EdDSA tokens.
-	JWTJWKSURL     string
+	JWTJWKSURL string
+	// RedisURL (redis://host:port/db) lets several chat-api replicas share one hub.
+	RedisURL       string
 	UserAPIURL     string
 	LogLevel       string
 	LogFormat      string
@@ -31,6 +33,7 @@ func Load() *Config {
 		InternalAPIKey: mustEnv("INTERNAL_API_KEY"),
 		JWTSecret:      getEnv("JWT_SECRET", ""),
 		JWTJWKSURL:     getEnv("JWT_JWKS_URL", ""),
+		RedisURL:       getEnv("REDIS_URL", ""),
 		UserAPIURL:     getEnv("USER_API_URL", "http://localhost:8084"),
 		LogLevel:       getEnv("LOG_LEVEL", "info"),
 		LogFormat:      getEnv("LOG_FORMAT", "text"),
