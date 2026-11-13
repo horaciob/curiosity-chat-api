@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/internalkeys"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/requestid"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/telemetry"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"os"
@@ -30,6 +31,7 @@ func NewRouter(
 	r := chi.NewRouter()
 
 	r.Use(chimiddleware.RequestID)
+	r.Use(telemetry.RouteName)
 	r.Use(requestid.Echo)
 	r.Use(chimiddleware.RealIP)
 	r.Use(custommiddleware.Metrics)

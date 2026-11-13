@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/internalkeys"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/jwks"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/telemetry"
 	"net/http"
 	"os"
 	"time"
@@ -128,6 +129,16 @@ func Build(cfg *config.Config, db *sqlx.DB) *App {
 // Returning an error rather than calling Fatal means a caller — including a test — decides
 // what a startup failure means, instead of the process exiting from inside a library.
 func (a *App) Run(ctx context.Context) error {
+	// Tracing: exported only when OTEL_EXPORTER_OTLP_ENDPOINT is set.
+	shutdownTracing, err := telemetry.Setup(ctx, "chat-api")
+	if err != nil {
+		return fmt.Errorf("telemetry: %w", err)
+	}
+	if telemetry.Enabled() {
+		logger.Info("tracing enabled (OTLP)")
+	}
+	a.Server.Handler = telemetry.Handler(a.Server.Handler, "chat-api")
+
 	go a.Hub.Run()
 	a.Hub.StartCluster(ctx, func(err error) { logger.Log.Warn("chat cluster", zap.Error(err)) })
 
@@ -151,6 +162,7 @@ func (a *App) Run(ctx context.Context) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	defer func() { _ = shutdownTracing(shutdownCtx) }() // flush pending spans
 	if err := a.Server.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("server forced to shutdown: %w", err)
 	}

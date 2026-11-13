@@ -9,6 +9,7 @@
 package requestid
 
 import (
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/telemetry"
 	"net/http"
 	"time"
 
@@ -46,7 +47,8 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return base.RoundTrip(req)
 }
 
-// NewClient returns an http.Client with the given timeout that forwards request IDs.
+// NewClient returns an http.Client with the given timeout that forwards request IDs and
+// trace context (traceparent).
 func NewClient(timeout time.Duration) *http.Client {
-	return &http.Client{Timeout: timeout, Transport: &Transport{}}
+	return &http.Client{Timeout: timeout, Transport: &Transport{Base: telemetry.Transport(nil)}}
 }
