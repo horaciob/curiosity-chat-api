@@ -10,8 +10,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/internalkeys"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/jwks"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -66,6 +68,13 @@ func Build(cfg *config.Config, db *sqlx.DB) *App {
 	}
 	tokens := jwtauth.NewWithKeys(tokenKeys)
 
+	// Inbound X-Internal-Key values: the shared one plus INTERNAL_API_KEYS (name:key,...).
+	internalKeys, err := internalkeys.Parse(cfg.InternalAPIKey, os.Getenv("INTERNAL_API_KEYS"))
+	if err != nil {
+		panic(err)
+	}
+	logger.Log.Info("internal callers accepted", zap.Strings("callers", internalKeys.Callers()))
+
 	hub := ws.NewHub()
 
 	healthHandler := handler.NewHealthHandler()
@@ -83,7 +92,7 @@ func Build(cfg *config.Config, db *sqlx.DB) *App {
 
 	r := router.NewRouter(
 		healthHandler, conversationHandler, messageHandler, wsHandler, internalHandler,
-		tokens, cfg.InternalAPIKey, cfg.AllowedOrigins,
+		tokens, internalKeys, cfg.AllowedOrigins,
 	)
 
 	return &App{

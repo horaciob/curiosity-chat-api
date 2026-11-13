@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/internalkeys"
 	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/requestid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
@@ -23,7 +24,7 @@ func NewRouter(
 	wsHandler *handler.WSHandler,
 	internalHandler *handler.InternalHandler,
 	tokenValidator custommiddleware.TokenValidator,
-	internalAPIKey string,
+	internalKeys *internalkeys.Set,
 	allowedOrigins []string,
 ) *chi.Mux {
 	r := chi.NewRouter()
@@ -74,7 +75,7 @@ func NewRouter(
 
 	// Service-to-service routes, at the root like the other services.
 	r.Route("/internal", func(r chi.Router) {
-		r.Use(custommiddleware.InternalAuthenticate(internalAPIKey))
+		r.Use(custommiddleware.InternalAuthenticateKeys(internalKeys))
 		r.Post("/users/{userID}/events", internalHandler.Events)
 	})
 

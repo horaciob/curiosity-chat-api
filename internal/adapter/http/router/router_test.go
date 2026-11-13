@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/horaciobranciforte/curiosity-chat-api/internal/infrastructure/internalkeys"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -26,7 +27,7 @@ func (stubTokens) Validate(tok string) (string, error) {
 func newTestRouter() *chi.Mux {
 	hub := ws.NewHub()
 	return NewRouter(handler.NewHealthHandler(), &handler.ConversationHandler{}, &handler.MessageHandler{},
-		&handler.WSHandler{}, handler.NewInternalHandler(hub), stubTokens{}, "key", nil)
+		&handler.WSHandler{}, handler.NewInternalHandler(hub), stubTokens{}, internalkeys.Single("key"), nil)
 }
 
 // The route table is the API contract (API.md).
