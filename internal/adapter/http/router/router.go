@@ -33,7 +33,13 @@ func NewRouter(
 	r.Use(chimiddleware.RequestID)
 	r.Use(telemetry.RouteName)
 	r.Use(requestid.Echo)
-	r.Use(chimiddleware.RealIP)
+	// X-Forwarded-For only from TRUSTED_PROXIES; otherwise anyone could pick their own
+	// rate-limit bucket by sending a new address with every request.
+	trusted, err := custommiddleware.ParseTrustedProxies(os.Getenv("TRUSTED_PROXIES"))
+	if err != nil {
+		panic("TRUSTED_PROXIES: " + err.Error())
+	}
+	r.Use(custommiddleware.TrustedRealIP(trusted))
 	r.Use(custommiddleware.Metrics)
 	// Compression wraps the response writer, which a WebSocket upgrade cannot go through.
 	r.Use(custommiddleware.SkipForWebSocket(chimiddleware.Compress(5, "application/json", "application/vnd.api+json")))

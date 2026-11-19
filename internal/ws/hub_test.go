@@ -311,3 +311,32 @@ func TestHubSlowClientDropMessage(t *testing.T) {
 		// Success - message was dropped
 	}
 }
+
+
+func TestASlowClientIsDisconnectedNotSilentlyStarved(t *testing.T) {
+	hub := NewHub()
+	kicked := make(chan *Client, 1)
+	hub.onSlow = func(c *Client) { kicked <- c }
+	go hub.Run()
+
+	slow := &Client{hub: hub, UserID: "u-slow", Conn: &websocket.Conn{}, Send: make(chan []byte, 1)}
+	hub.Register(slow)
+	time.Sleep(20 * time.Millisecond)
+
+	hub.BroadcastRaw("u-slow", []byte(`{"n":1}`)) // fills the buffer
+	hub.BroadcastRaw("u-slow", []byte(`{"n":2}`)) // no room: disconnect
+
+	select {
+	case c := <-kicked:
+		if c != slow {
+			t.Fatal("the wrong client was disconnected")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("a client that stopped reading was left connected")
+	}
+}
+
+func TestDisconnectIgnoresAClientWithoutAConnection(t *testing.T) {
+	disconnect(&Client{Conn: &websocket.Conn{}}) // must not panic
+	disconnect(&Client{})
+}

@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"encoding/json"
-	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -101,36 +100,6 @@ func (rl *RateLimiter) getLimiter(identifier string) *rate.Limiter {
 	return v.limiter
 }
 
-// getClientIP extracts the client IP address from the request.
-func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		// Take the first IP if multiple are present
-		ips := []string{}
-		for _, ip := range splitAndTrim(xff, ",") {
-			if ip != "" {
-				ips = append(ips, ip)
-			}
-		}
-		if len(ips) > 0 {
-			return ips[0]
-		}
-	}
-
-	// Check X-Real-Ip header
-	xri := r.Header.Get("X-Real-Ip")
-	if xri != "" {
-		return xri
-	}
-
-	// Fall back to RemoteAddr
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
-}
 
 // splitAndTrim splits a string by separator and trims whitespace from each part.
 func splitAndTrim(s, sep string) []string {
@@ -181,7 +150,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 		}
 
 		// Get identifier: prefer user ID if authenticated, otherwise use IP
-		identifier := getClientIP(r)
+		identifier := remoteIP(r)
 		// chat-api's helper returns the id alone, empty when unauthenticated.
 		if userID := UserIDFromContext(r.Context()); userID != "" {
 			identifier = userID

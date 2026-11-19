@@ -43,3 +43,11 @@ func TestValidateRejects(t *testing.T) {
 		assert.Error(t, err, name)
 	}
 }
+
+func TestValidateWithExpiryReportsWhenTheTokenEnds(t *testing.T) {
+	exp := time.Now().Add(42 * time.Minute).Truncate(time.Second)
+	id, got, err := New(secret).ValidateWithExpiry(sign(t, userClaims("user-1", exp), secret))
+	require.NoError(t, err)
+	assert.Equal(t, "user-1", id)
+	assert.True(t, got.Equal(exp), "got %v want %v", got, exp)
+}

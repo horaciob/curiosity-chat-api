@@ -37,6 +37,7 @@ type IncomingMessage struct {
 	Content        string `json:"content,omitempty"`
 	POIID          string `json:"poi_id,omitempty"`
 	IsTyping       bool   `json:"is_typing,omitempty"` // for type="typing"
+	ShareIntent    string `json:"share_intent,omitempty"` // for type="poi_share"
 }
 
 // OutgoingMessage is the JSON structure pushed to WebSocket clients for chat messages.
@@ -122,6 +123,15 @@ type Hub struct {
 	broadcast  chan broadcastEnvelope
 	mu         sync.RWMutex
 	cluster    Cluster // optional: fan deliveries and presence out across replicas
+	onSlow     func(*Client) // what to do with a client whose buffer is full
+}
+
+// disconnect closes a client's connection; its read loop then unregisters it.
+func disconnect(c *Client) {
+	if c.Conn == nil || c.Conn.UnderlyingConn() == nil {
+		return
+	}
+	_ = c.Conn.Close()
 }
 
 // WithCluster makes the hub one of several replicas sharing deliveries and presence.
@@ -213,6 +223,7 @@ func NewHub() *Hub {
 		register:   make(chan *Client, registerChanBufferSize),
 		unregister: make(chan *Client, unregisterChanBufferSize),
 		broadcast:  make(chan broadcastEnvelope, broadcastChanBufferSize),
+		onSlow:     disconnect,
 	}
 }
 
@@ -256,7 +267,10 @@ func (h *Hub) Run() {
 				select {
 				case client.Send <- env.payload:
 				default:
-					// Slow client — drop message rather than blocking
+					// Its buffer is full: it is not reading. Dropping the frame silently left
+					// it showing a stale chat for good. Close the connection instead; its read
+					// loop unregisters it, and the app reconnects and reloads the messages.
+					go h.onSlow(client)
 				}
 			}
 		}

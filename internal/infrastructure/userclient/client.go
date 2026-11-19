@@ -2,6 +2,7 @@
 package userclient
 
 import (
+	"sync"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -83,4 +84,78 @@ func (c *Client) ChatPush(ctx context.Context, recipientID, senderID, conversati
 		return fmt.Errorf("user-api pushes: status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// AreFriends asks user-api whether two users are friends (GET /internal/friendships).
+func (c *Client) AreFriends(ctx context.Context, a, b string) (bool, error) {
+	endpoint := c.baseURL + "/internal/friendships?users=" + url.QueryEscape(a+","+b)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("X-Internal-Key", c.internalKey)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("user-api friendships: status %d", resp.StatusCode)
+	}
+	var body struct {
+		Friends bool `json:"friends"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return false, err
+	}
+	return body.Friends, nil
+}
+
+// FriendCache remembers friendship answers briefly: a conversation sends many messages
+// and each one checks, so user-api is asked at most once per pair per TTL.
+type FriendCache struct {
+	inner interface {
+		AreFriends(ctx context.Context, a, b string) (bool, error)
+	}
+	ttl time.Duration
+	mu  sync.Mutex
+	m   map[[2]string]friendEntry
+	now func() time.Time
+}
+
+type friendEntry struct {
+	friends bool
+	until   time.Time
+}
+
+// NewFriendCache caches inner's answers for ttl.
+func NewFriendCache(inner interface {
+	AreFriends(ctx context.Context, a, b string) (bool, error)
+}, ttl time.Duration) *FriendCache {
+	return &FriendCache{inner: inner, ttl: ttl, m: map[[2]string]friendEntry{}, now: time.Now}
+}
+
+// AreFriends answers from the cache or asks; errors are not cached.
+func (f *FriendCache) AreFriends(ctx context.Context, a, b string) (bool, error) {
+	if a > b {
+		a, b = b, a
+	}
+	key := [2]string{a, b}
+	f.mu.Lock()
+	e, ok := f.m[key]
+	f.mu.Unlock()
+	if ok && f.now().Before(e.until) {
+		return e.friends, nil
+	}
+	friends, err := f.inner.AreFriends(ctx, a, b)
+	if err != nil {
+		return false, err
+	}
+	f.mu.Lock()
+	if len(f.m) > 10000 { // bounded: drop everything rather than grow forever
+		f.m = map[[2]string]friendEntry{}
+	}
+	f.m[key] = friendEntry{friends: friends, until: f.now().Add(f.ttl)}
+	f.mu.Unlock()
+	return friends, nil
 }

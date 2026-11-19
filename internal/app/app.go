@@ -48,11 +48,9 @@ func Build(cfg *config.Config, db *sqlx.DB) *App {
 	convRepo := postgresrepo.NewConversationRepository(db)
 	msgRepo := postgresrepo.NewMessageRepository(db)
 
-	createConversationUC := conversation.NewCreateConversation(convRepo)
 	getConversationUC := conversation.NewGetConversation(convRepo)
 	listConversationsUC := conversation.NewListConversations(convRepo)
 
-	sendMessageUC := message.NewSendMessage(msgRepo, convRepo)
 	getMessagesUC := message.NewGetMessages(msgRepo, convRepo)
 
 	// Tokens are validated locally — with user-api's public keys (JWKS, EdDSA) and/or the
@@ -97,6 +95,10 @@ func Build(cfg *config.Config, db *sqlx.DB) *App {
 	// user-api resolves names for the conversation list and sends pushes to recipients
 	// who are offline.
 	userClient := userclient.NewClient(cfg.UserAPIURL, cfg.InternalAPIKey)
+	// Only friends can write to each other; unfriending stops the messages too.
+	friends := userclient.NewFriendCache(userClient, 30*time.Second)
+	createConversationUC := conversation.NewCreateConversation(convRepo).WithFriendChecker(friends)
+	sendMessageUC := message.NewSendMessage(msgRepo, convRepo).WithFriendChecker(friends)
 	conversationHandler := handler.NewConversationHandler(
 		createConversationUC, getConversationUC, listConversationsUC).
 		WithSummary(conversation.NewSummarize(msgRepo, userClient))

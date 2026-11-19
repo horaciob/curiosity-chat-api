@@ -41,6 +41,13 @@ func NewWithKeys(keys *jwks.Keys) *Validator {
 // Validate returns the user ID of a valid app-user token. Admin tokens are rejected:
 // their subject is an admin account, not someone who can chat.
 func (v *Validator) Validate(tokenString string) (string, error) {
+	id, _, err := v.ValidateWithExpiry(tokenString)
+	return id, err
+}
+
+// ValidateWithExpiry is Validate plus when the token stops being valid, so a WebSocket
+// opened with it can be closed then instead of living on with an expired credential.
+func (v *Validator) ValidateWithExpiry(tokenString string) (string, time.Time, error) {
 	var c claims
 	token, err := jwt.ParseWithClaims(tokenString, &c, v.keys.Keyfunc,
 		jwt.WithValidMethods(v.keys.Methods()),
@@ -50,13 +57,17 @@ func (v *Validator) Validate(tokenString string) (string, error) {
 		jwt.WithLeeway(leeway),
 	)
 	if err != nil || !token.Valid {
-		return "", errors.New("invalid or expired token")
+		return "", time.Time{}, errors.New("invalid or expired token")
 	}
 	if c.Role != "" {
-		return "", errors.New("admin token used as a user token")
+		return "", time.Time{}, errors.New("admin token used as a user token")
 	}
 	if c.Subject == "" {
-		return "", errors.New("token has no subject")
+		return "", time.Time{}, errors.New("token has no subject")
 	}
-	return c.Subject, nil
+	var exp time.Time
+	if c.ExpiresAt != nil {
+		exp = c.ExpiresAt.Time
+	}
+	return c.Subject, exp, nil
 }

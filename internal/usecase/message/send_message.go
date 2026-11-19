@@ -29,6 +29,19 @@ const (
 type SendMessage struct {
 	repo     Repository
 	convRepo ConversationRepository
+	friends  FriendChecker // when set, both people must still be friends
+}
+
+// FriendChecker tells whether two users are friends.
+type FriendChecker interface {
+	AreFriends(ctx context.Context, a, b string) (bool, error)
+}
+
+// WithFriendChecker makes unfriending stop the messages too. When user-api cannot be
+// reached the message goes through: an outage elsewhere should not take chat down.
+func (uc *SendMessage) WithFriendChecker(f FriendChecker) *SendMessage {
+	uc.friends = f
+	return uc
 }
 
 // NewSendMessage creates a new SendMessage use case.
@@ -88,10 +101,17 @@ func (uc *SendMessage) Execute(ctx context.Context, conversationID, senderID str
 		return nil, apperror.Forbidden("you are not a participant in this conversation", domerrors.ErrNotParticipant)
 	}
 
-	logger.Info("[SEND_MESSAGE] Participant check passed - unlimited messaging enabled",
-		zap.String("conversation_id", conversationID),
-		zap.String("sender_id", senderID),
-	)
+	if uc.friends != nil {
+		if other, err := conv.OtherUserID(senderID); err == nil {
+			ok, err := uc.friends.AreFriends(ctx, senderID, other)
+			switch {
+			case err != nil:
+				logger.Warn("[SEND_MESSAGE] friendship check failed; delivering anyway", zap.Error(err))
+			case !ok:
+				return nil, apperror.Forbidden("you can only message friends", domerrors.ErrNotParticipant).WithCode("not_friends")
+			}
+		}
+	}
 
 	var msg *entity.Message
 	switch in.Type {
